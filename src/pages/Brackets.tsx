@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Trophy, Users, Edit, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
 
 interface Team {
   id: string;
@@ -217,17 +218,20 @@ const Brackets = () => {
     <div className="min-h-screen bg-padel-gradient">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver
-              </Button>
-            </Link>
-            <div className="flex items-center gap-3">
-              <Trophy className="h-6 w-6" />
-              <h1 className="text-2xl font-bold">Eliminatorias</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Volver
+                </Button>
+              </Link>
+              <div className="flex items-center gap-3">
+                <Trophy className="h-6 w-6" />
+                <h1 className="text-2xl font-bold">Eliminatorias</h1>
+              </div>
             </div>
+            <img src={tournamentLogo} alt="White Padel" className="h-12 w-auto" />
           </div>
         </div>
       </header>

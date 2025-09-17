@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Trophy, Users, Target, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import whitePadelLogo from "@/assets/white-padel-logo.png";
+import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
 
 const Index = () => {
   const categories = [
@@ -21,9 +22,9 @@ const Index = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-center gap-4">
             <img 
-              src={whitePadelLogo} 
-              alt="White Padel Logo" 
-              className="h-12 w-12 object-contain"
+              src={tournamentLogo} 
+              alt="White Padel Tournament" 
+              className="h-16 w-auto object-contain"
             />
             <h1 className="text-3xl font-bold tracking-tight">White Padel Tournament</h1>
           </div>
