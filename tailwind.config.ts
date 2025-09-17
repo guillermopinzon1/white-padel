@@ -47,6 +47,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        padel: {
+          gold: "hsl(var(--padel-gold))",
+          "gold-light": "hsl(var(--padel-gold-light))",
+          shadow: "hsl(var(--padel-shadow))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -62,6 +67,18 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      backgroundImage: {
+        "padel-gradient": "var(--padel-gradient)",
+        "padel-border": "var(--padel-border-gradient)",
+      },
+      transitionTimingFunction: {
+        "smooth": "var(--transition-smooth)",
+        "bounce": "var(--transition-bounce)",
+      },
+      boxShadow: {
+        "padel": "0 10px 40px -10px hsl(var(--padel-shadow) / 0.1)",
+        "padel-lg": "0 20px 60px -10px hsl(var(--padel-shadow) / 0.15)",
       },
       keyframes: {
         "accordion-down": {
