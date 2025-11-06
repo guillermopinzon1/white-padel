@@ -34,13 +34,13 @@ interface Group {
 interface Match {
   id: string;
   group_id: string;
-  team1: Team;
-  team2: Team;
+  team1: Team | null;
+  team2: Team | null;
   team1_set1: number;
-  team1_set2: number;
+  team1_set2: number | null;
   team1_set3: number | null;
   team2_set1: number;
-  team2_set2: number;
+  team2_set2: number | null;
   team2_set3: number | null;
   winner_id: string | null;
   status: 'pending' | 'in_progress' | 'completed';
@@ -48,11 +48,12 @@ interface Match {
 
 const TournamentManager = () => {
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Masculino");
   const [groups, setGroups] = useState<Group[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [numberOfGroups, setNumberOfGroups] = useState(2);
+  const [matchesPerTeam, setMatchesPerTeam] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -130,10 +131,10 @@ const TournamentManager = () => {
         team1: m.team1,
         team2: m.team2,
         team1_set1: m.team1_set1 || 0,
-        team1_set2: m.team1_set2 || 0,
+        team1_set2: m.team1_set2,
         team1_set3: m.team1_set3,
         team2_set1: m.team2_set1 || 0,
-        team2_set2: m.team2_set2 || 0,
+        team2_set2: m.team2_set2,
         team2_set3: m.team2_set3,
         winner_id: m.winner_id,
         status: m.status
@@ -190,34 +191,93 @@ const TournamentManager = () => {
   // Generar partidos para cada grupo
   const generateMatches = () => {
     const newMatches: Match[] = [];
+    let totalUnassigned = 0;
 
     groups.forEach(group => {
-      // Generar todos contra todos (round-robin)
-      for (let i = 0; i < group.teams.length; i++) {
-        for (let j = i + 1; j < group.teams.length; j++) {
+      const teamMatchCount: Record<string, number> = {};
+      const availableOpponents: Record<string, string[]> = {};
+
+      // Inicializar contadores
+      group.teams.forEach(team => {
+        teamMatchCount[team.id] = 0;
+        availableOpponents[team.id] = group.teams.filter(t => t.id !== team.id).map(t => t.id);
+      });
+
+      // Generar partidos asegurando que cada equipo juegue matchesPerTeam partidos
+      const shuffledTeams = [...group.teams].sort(() => Math.random() - 0.5);
+
+      shuffledTeams.forEach(team1 => {
+        while (teamMatchCount[team1.id] < matchesPerTeam && availableOpponents[team1.id].length > 0) {
+          // Buscar oponente que también necesite partidos
+          const potentialOpponents = availableOpponents[team1.id].filter(oppId =>
+            teamMatchCount[oppId] < matchesPerTeam &&
+            availableOpponents[oppId].includes(team1.id)
+          );
+
+          if (potentialOpponents.length > 0) {
+            // Seleccionar oponente aleatorio
+            const opponentId = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
+            const team2 = group.teams.find(t => t.id === opponentId);
+
+            if (team2) {
+              newMatches.push({
+                id: `temp-${group.id}-${team1.id}-${opponentId}-${Date.now()}`,
+                group_id: group.id,
+                team1: team1,
+                team2: team2,
+                team1_set1: 0,
+                team1_set2: null,
+                team1_set3: null,
+                team2_set1: 0,
+                team2_set2: null,
+                team2_set3: null,
+                winner_id: null,
+                status: 'pending'
+              });
+
+              teamMatchCount[team1.id]++;
+              teamMatchCount[opponentId]++;
+
+              // Remover de disponibles para evitar duplicados
+              availableOpponents[team1.id] = availableOpponents[team1.id].filter(id => id !== opponentId);
+              availableOpponents[opponentId] = availableOpponents[opponentId].filter(id => id !== team1.id);
+            }
+          } else {
+            break; // No hay oponentes disponibles
+          }
+        }
+      });
+
+      // Crear partidos sin asignar para equipos que no completaron sus partidos
+      group.teams.forEach(team => {
+        const remainingMatches = matchesPerTeam - teamMatchCount[team.id];
+        for (let i = 0; i < remainingMatches; i++) {
           newMatches.push({
-            id: `temp-${group.id}-${i}-${j}`,
+            id: `temp-unassigned-${group.id}-${team.id}-${i}-${Date.now()}`,
             group_id: group.id,
-            team1: group.teams[i],
-            team2: group.teams[j],
+            team1: team,
+            team2: null, // Sin asignar
             team1_set1: 0,
-            team1_set2: 0,
+            team1_set2: null,
             team1_set3: null,
             team2_set1: 0,
-            team2_set2: 0,
+            team2_set2: null,
             team2_set3: null,
             winner_id: null,
             status: 'pending'
           });
+          totalUnassigned++;
         }
-      }
+      });
     });
 
     setMatches(newMatches);
 
     toast({
       title: "Partidos generados",
-      description: `Se generaron ${newMatches.length} partidos (todos contra todos)`
+      description: totalUnassigned > 0
+        ? `Se generaron ${newMatches.length} partidos. ${totalUnassigned} partido(s) sin contrincante asignado.`
+        : `Se generaron ${newMatches.length} partidos correctamente`
     });
   };
 
@@ -285,24 +345,36 @@ const TournamentManager = () => {
         }
       }
 
-      // 5. Crear partidos
+      // 5. Crear partidos (solo los que tienen ambos equipos asignados)
       for (const match of matches) {
-        const realGroupId = groupIdMapping[match.group_id];
+        // Solo guardar partidos con ambos equipos asignados
+        if (match.team1 && match.team2) {
+          const realGroupId = groupIdMapping[match.group_id];
 
-        await supabase.from('matches').insert({
-          category: selectedCategory,
-          phase: 'group',
-          group_id: realGroupId,
-          team1_id: match.team1.id,
-          team2_id: match.team2.id,
-          team1_set1: match.team1_set1,
-          team1_set2: match.team1_set2,
-          team1_set3: match.team1_set3,
-          team2_set1: match.team2_set1,
-          team2_set2: match.team2_set2,
-          team2_set3: match.team2_set3,
-          winner_id: match.winner_id,
-          status: match.status
+          await supabase.from('matches').insert({
+            category: selectedCategory,
+            phase: 'group',
+            group_id: realGroupId,
+            team1_id: match.team1.id,
+            team2_id: match.team2.id,
+            team1_set1: match.team1_set1,
+            team1_set2: match.team1_set2,
+            team1_set3: match.team1_set3,
+            team2_set1: match.team2_set1,
+            team2_set2: match.team2_set2,
+            team2_set3: match.team2_set3,
+            winner_id: match.winner_id,
+            status: match.status
+          });
+        }
+      }
+
+      const unassignedMatches = matches.filter(m => !m.team2).length;
+      if (unassignedMatches > 0) {
+        toast({
+          title: "Advertencia",
+          description: `${unassignedMatches} partido(s) sin contrincante no fueron guardados. Asigna los contrincantes y guarda nuevamente.`,
+          variant: "destructive"
         });
       }
 
@@ -360,7 +432,9 @@ const TournamentManager = () => {
     // Auto-calcular ganador antes de guardar
     const team1Sets = [
       editingMatch.team1_set1 > editingMatch.team2_set1 ? 1 : 0,
-      editingMatch.team1_set2 > editingMatch.team2_set2 ? 1 : 0,
+      editingMatch.team1_set2 !== null && editingMatch.team2_set2 !== null
+        ? (editingMatch.team1_set2 > editingMatch.team2_set2 ? 1 : 0)
+        : 0,
       editingMatch.team1_set3 !== null && editingMatch.team2_set3 !== null
         ? (editingMatch.team1_set3 > editingMatch.team2_set3 ? 1 : 0)
         : 0
@@ -368,7 +442,9 @@ const TournamentManager = () => {
 
     const team2Sets = [
       editingMatch.team2_set1 > editingMatch.team1_set1 ? 1 : 0,
-      editingMatch.team2_set2 > editingMatch.team1_set2 ? 1 : 0,
+      editingMatch.team2_set2 !== null && editingMatch.team1_set2 !== null
+        ? (editingMatch.team2_set2 > editingMatch.team1_set2 ? 1 : 0)
+        : 0,
       editingMatch.team2_set3 !== null && editingMatch.team1_set3 !== null
         ? (editingMatch.team2_set3 > editingMatch.team1_set3 ? 1 : 0)
         : 0
@@ -376,11 +452,15 @@ const TournamentManager = () => {
 
     let updatedMatch = { ...editingMatch };
 
-    // Determinar ganador
-    if (team1Sets >= 2) {
+    // Determinar ganador (puede ganar con 1 set si solo se jugó 1 set)
+    const totalSets = (editingMatch.team1_set2 !== null ? 1 : 0) +
+                      (editingMatch.team1_set3 !== null ? 1 : 0) + 1; // +1 por set 1 que es obligatorio
+    const setsToWin = Math.ceil(totalSets / 2);
+
+    if (team1Sets >= setsToWin) {
       updatedMatch.winner_id = editingMatch.team1.id;
       updatedMatch.status = 'completed';
-    } else if (team2Sets >= 2) {
+    } else if (team2Sets >= setsToWin) {
       updatedMatch.winner_id = editingMatch.team2.id;
       updatedMatch.status = 'completed';
     } else {
@@ -435,10 +515,10 @@ const TournamentManager = () => {
       team1,
       team2,
       team1_set1: 0,
-      team1_set2: 0,
+      team1_set2: null,
       team1_set3: null,
       team2_set1: 0,
-      team2_set2: 0,
+      team2_set2: null,
       team2_set3: null,
       winner_id: null,
       status: 'pending'
@@ -489,51 +569,18 @@ const TournamentManager = () => {
       </header>
 
       <main className="container mx-auto px-6 py-8 max-w-7xl">
-        {/* Selector de categoría */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>1. Seleccionar Categoría</CardTitle>
-            <CardDescription>Elige la categoría para configurar el torneo</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4 items-end">
-              <div className="flex-1 max-w-md">
-                <Label>Categoría</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories && categories.length > 0 ? (
-                      categories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.name}>
-                          {cat.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-sm text-muted-foreground">
-                        No hay categorías. Ejecuta el script SQL primero.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              {(!categories || categories.length === 0) && (
-                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  ⚠️ No hay categorías configuradas. Ejecuta el archivo <code className="bg-amber-100 px-1 rounded">EJECUTAR_ESTO_EN_SUPABASE.sql</code>
-                </div>
-              )}
-              {selectedCategory && (
-                <Badge variant="outline" className="h-10 px-4">
-                  {allTeams?.length || 0} duplas disponibles
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="space-y-6">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+            <TabsTrigger value="Masculino">
+              Masculino ({allTeams?.length || 0} duplas)
+            </TabsTrigger>
+            <TabsTrigger value="Femenino">
+              Femenino
+            </TabsTrigger>
+          </TabsList>
 
-        {selectedCategory && (
-          <>
+          <TabsContent value="Masculino" className="space-y-6">
+            {/* Contenido de Masculino */}
             {/* Configuración de grupos */}
             <Card className="mb-6">
               <CardHeader>
@@ -586,10 +633,23 @@ const TournamentManager = () => {
                       </DialogContent>
                     </Dialog>
                     {groups.length > 0 && (
-                      <Button onClick={generateMatches} className="gap-2">
-                        <Play className="h-4 w-4" />
-                        Generar Partidos
-                      </Button>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm whitespace-nowrap">Partidos por dupla:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={matchesPerTeam}
+                            onChange={(e) => setMatchesPerTeam(Number(e.target.value))}
+                            className="w-20"
+                          />
+                        </div>
+                        <Button onClick={generateMatches} className="gap-2">
+                          <Play className="h-4 w-4" />
+                          Generar Partidos
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -747,52 +807,154 @@ const TournamentManager = () => {
                     </TabsList>
                     {groups.map(group => (
                       <TabsContent key={group.id} value={group.id}>
-                        <div className="space-y-3">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {matches
                             .filter(m => m.group_id === group.id)
                             .map((match, index) => (
-                              <div
+                              <Card
                                 key={match.id}
-                                className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                                className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                               >
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-4">
-                                    <Badge variant="outline">#{index + 1}</Badge>
-                                    <div className="flex-1">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="font-semibold">{match.team1.name}</span>
-                                        <span className="text-sm text-muted-foreground">
-                                          {match.team1_set1}-{match.team2_set1} | {match.team1_set2}-{match.team2_set2}
-                                          {match.team1_set3 !== null && ` | ${match.team1_set3}-${match.team2_set3}`}
-                                        </span>
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <Badge variant="outline">Partido #{index + 1}</Badge>
+                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
+                                      {match.status === 'completed' ? 'Completado' : 'Pendiente'}
+                                    </Badge>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  {/* Equipo 1 */}
+                                  {match.team1 && (
+                                    <div className="p-3 rounded-lg bg-muted/50 border">
+                                      <p className="font-semibold text-sm mb-1">{match.team1.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {match.team1.player1_name} / {match.team1.player2_name}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Equipo 2 o Selector */}
+                                  {match.team2 ? (
+                                    <>
+                                      {/* VS y Marcador */}
+                                      <div className="flex items-center justify-center gap-2 py-2">
+                                        <div className="text-center">
+                                          <p className="text-xs text-muted-foreground mb-1">Set 1</p>
+                                          <div className="flex gap-1 text-sm font-bold">
+                                            <span className={match.team1_set1 > match.team2_set1 ? 'text-primary' : ''}>
+                                              {match.team1_set1}
+                                            </span>
+                                            <span>-</span>
+                                            <span className={match.team2_set1 > match.team1_set1 ? 'text-primary' : ''}>
+                                              {match.team2_set1}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {match.team1_set2 !== null && match.team2_set2 !== null && (
+                                          <>
+                                            <div className="h-8 w-px bg-border" />
+                                            <div className="text-center">
+                                              <p className="text-xs text-muted-foreground mb-1">Set 2</p>
+                                              <div className="flex gap-1 text-sm font-bold">
+                                                <span className={match.team1_set2 > match.team2_set2 ? 'text-primary' : ''}>
+                                                  {match.team1_set2}
+                                                </span>
+                                                <span>-</span>
+                                                <span className={match.team2_set2 > match.team1_set2 ? 'text-primary' : ''}>
+                                                  {match.team2_set2}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
+                                        {match.team1_set3 !== null && match.team2_set3 !== null && (
+                                          <>
+                                            <div className="h-8 w-px bg-border" />
+                                            <div className="text-center">
+                                              <p className="text-xs text-muted-foreground mb-1">Set 3</p>
+                                              <div className="flex gap-1 text-sm font-bold">
+                                                <span className={match.team1_set3 > match.team2_set3 ? 'text-primary' : ''}>
+                                                  {match.team1_set3}
+                                                </span>
+                                                <span>-</span>
+                                                <span className={match.team2_set3 > match.team1_set3 ? 'text-primary' : ''}>
+                                                  {match.team2_set3}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
                                       </div>
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-semibold">{match.team2.name}</span>
-                                        <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
-                                          {match.status === 'completed' ? 'Completado' : 'Pendiente'}
-                                        </Badge>
+
+                                      {/* Equipo 2 */}
+                                      <div className="p-3 rounded-lg bg-muted/50 border">
+                                        <p className="font-semibold text-sm mb-1">{match.team2.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {match.team2.player1_name} / {match.team2.player2_name}
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-center py-2">
+                                        <span className="text-2xl font-bold text-muted-foreground">VS</span>
+                                      </div>
+                                      <div className="p-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50">
+                                        <Label className="text-xs text-muted-foreground mb-2 block">
+                                          Seleccionar contrincante
+                                        </Label>
+                                        <Select
+                                          value={match.team2?.id || ""}
+                                          onValueChange={(value) => {
+                                            const selectedTeam = group.teams.find(t => t.id === value);
+                                            if (selectedTeam) {
+                                              const updatedMatches = matches.map(m =>
+                                                m.id === match.id ? { ...m, team2: selectedTeam } : m
+                                              );
+                                              setMatches(updatedMatches);
+                                            }
+                                          }}
+                                        >
+                                          <SelectTrigger className="bg-white">
+                                            <SelectValue placeholder="Seleccionar dupla..." />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {group.teams
+                                              .filter(t => t.id !== match.team1?.id)
+                                              .map(team => (
+                                                <SelectItem key={team.id} value={team.id}>
+                                                  {team.name}
+                                                </SelectItem>
+                                              ))}
+                                          </SelectContent>
+                                        </Select>
                                       </div>
                                     </div>
+                                  )}
+
+                                  {/* Botones de acción */}
+                                  <div className="flex gap-2 pt-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="flex-1"
+                                      onClick={() => handleEditMatch(match)}
+                                    >
+                                      <Edit className="h-3 w-3 mr-1" />
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteMatch(match.id)}
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
                                   </div>
-                                </div>
-                                <div className="flex gap-2 ml-4">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEditMatch(match)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteMatch(match.id)}
-                                    className="text-destructive hover:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
+                                </CardContent>
+                              </Card>
                             ))}
                         </div>
                       </TabsContent>
@@ -822,8 +984,410 @@ const TournamentManager = () => {
                 </Button>
               </div>
             )}
-          </>
-        )}
+          </TabsContent>
+
+          <TabsContent value="Femenino" className="space-y-6">
+            {/* Mismo contenido para Femenino */}
+            {/* Configuración de grupos */}
+            <Card className="mb-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>1. Configurar Grupos</CardTitle>
+                    <CardDescription>Define los grupos y distribuye las duplas</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="gap-2">
+                          <Settings className="h-4 w-4" />
+                          Configurar
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Configuración de Grupos</DialogTitle>
+                          <DialogDescription>
+                            Ajusta el número de grupos y genera la distribución automática
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div>
+                            <Label>Número de grupos</Label>
+                            <Input
+                              type="number"
+                              min="2"
+                              max="8"
+                              value={numberOfGroups}
+                              onChange={(e) => setNumberOfGroups(Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="rounded-lg bg-muted p-3">
+                            <p className="text-sm">
+                              {allTeams?.length || 0} duplas ÷ {numberOfGroups} grupos = ~{Math.ceil((allTeams?.length || 0) / numberOfGroups)} duplas por grupo
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsConfigDialogOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={handleGenerateGroups} className="gap-2">
+                            <Shuffle className="h-4 w-4" />
+                            Generar
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    {groups.length > 0 && (
+                      <div className="flex gap-2 items-center">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm whitespace-nowrap">Partidos por dupla:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={matchesPerTeam}
+                            onChange={(e) => setMatchesPerTeam(Number(e.target.value))}
+                            className="w-20"
+                          />
+                        </div>
+                        <Button onClick={generateMatches} className="gap-2">
+                          <Play className="h-4 w-4" />
+                          Generar Partidos
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {groups.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                    <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="font-semibold mb-2">No hay grupos configurados</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Haz clic en "Configurar" para generar los grupos automáticamente
+                    </p>
+                  </div>
+                ) : (
+                  <DragDropContext onDragEnd={onDragEnd}>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {groups.map((group, groupIndex) => (
+                        <Card key={group.id}>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-lg">{group.name}</CardTitle>
+                            <CardDescription>{group.teams.length} duplas</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <Droppable droppableId={groupIndex.toString()}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.droppableProps}
+                                  className={`space-y-2 min-h-[100px] p-2 rounded-lg transition-colors ${
+                                    snapshot.isDraggingOver ? 'bg-muted' : ''
+                                  }`}
+                                >
+                                  {group.teams.map((team, index) => (
+                                    <Draggable key={team.id} draggableId={team.id} index={index}>
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          {...provided.dragHandleProps}
+                                          className={`p-3 rounded-lg border bg-card transition-all ${
+                                            snapshot.isDragging ? 'shadow-lg ring-2 ring-primary' : ''
+                                          }`}
+                                        >
+                                          <p className="font-semibold text-sm">{team.name}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {team.player1_name} / {team.player2_name}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </DragDropContext>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Partidos */}
+            {matches.length > 0 && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>2. Partidos Generados</CardTitle>
+                      <CardDescription>Revisa, edita, agrega o elimina partidos</CardDescription>
+                    </div>
+                    <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="gap-2">
+                          <Plus className="h-4 w-4" />
+                          Agregar Partido
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Agregar Nuevo Partido</DialogTitle>
+                          <DialogDescription>
+                            Selecciona el grupo y los equipos que jugarán
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div>
+                            <Label>Grupo</Label>
+                            <Select value={selectedGroupForMatch} onValueChange={setSelectedGroupForMatch}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar grupo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groups.map(group => (
+                                  <SelectItem key={group.id} value={group.id}>
+                                    {group.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Equipo 1</Label>
+                            <Select value={newMatchTeam1} onValueChange={setNewMatchTeam1}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar equipo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allTeams?.map(team => (
+                                  <SelectItem key={team.id} value={team.id}>
+                                    {team.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Equipo 2</Label>
+                            <Select value={newMatchTeam2} onValueChange={setNewMatchTeam2}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar equipo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allTeams?.filter(t => t.id !== newMatchTeam1).map(team => (
+                                  <SelectItem key={team.id} value={team.id}>
+                                    {team.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsAddMatchDialogOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={handleAddMatch}>
+                            Agregar
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue={groups[0]?.id}>
+                    <TabsList className="mb-4">
+                      {groups.map(group => (
+                        <TabsTrigger key={group.id} value={group.id}>
+                          {group.name} ({matches.filter(m => m.group_id === group.id).length} partidos)
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {groups.map(group => (
+                      <TabsContent key={group.id} value={group.id}>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {matches
+                            .filter(m => m.group_id === group.id)
+                            .map((match, index) => (
+                              <Card
+                                key={match.id}
+                                className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+                              >
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <Badge variant="outline">Partido #{index + 1}</Badge>
+                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
+                                      {match.status === 'completed' ? 'Completado' : 'Pendiente'}
+                                    </Badge>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  {match.team1 && (
+                                    <div className="p-3 rounded-lg bg-muted/50 border">
+                                      <p className="font-semibold text-sm mb-1">{match.team1.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {match.team1.player1_name} / {match.team1.player2_name}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {match.team2 ? (
+                                    <>
+                                      <div className="flex items-center justify-center gap-2 py-2">
+                                        <div className="text-center">
+                                          <p className="text-xs text-muted-foreground mb-1">Set 1</p>
+                                          <div className="flex gap-1 text-sm font-bold">
+                                            <span className={match.team1_set1 > match.team2_set1 ? 'text-primary' : ''}>
+                                              {match.team1_set1}
+                                            </span>
+                                            <span>-</span>
+                                            <span className={match.team2_set1 > match.team1_set1 ? 'text-primary' : ''}>
+                                              {match.team2_set1}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {match.team1_set2 !== null && match.team2_set2 !== null && (
+                                          <>
+                                            <div className="h-8 w-px bg-border" />
+                                            <div className="text-center">
+                                              <p className="text-xs text-muted-foreground mb-1">Set 2</p>
+                                              <div className="flex gap-1 text-sm font-bold">
+                                                <span className={match.team1_set2 > match.team2_set2 ? 'text-primary' : ''}>
+                                                  {match.team1_set2}
+                                                </span>
+                                                <span>-</span>
+                                                <span className={match.team2_set2 > match.team1_set2 ? 'text-primary' : ''}>
+                                                  {match.team2_set2}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
+                                        {match.team1_set3 !== null && match.team2_set3 !== null && (
+                                          <>
+                                            <div className="h-8 w-px bg-border" />
+                                            <div className="text-center">
+                                              <p className="text-xs text-muted-foreground mb-1">Set 3</p>
+                                              <div className="flex gap-1 text-sm font-bold">
+                                                <span className={match.team1_set3 > match.team2_set3 ? 'text-primary' : ''}>
+                                                  {match.team1_set3}
+                                                </span>
+                                                <span>-</span>
+                                                <span className={match.team2_set3 > match.team1_set3 ? 'text-primary' : ''}>
+                                                  {match.team2_set3}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      <div className="p-3 rounded-lg bg-muted/50 border">
+                                        <p className="font-semibold text-sm mb-1">{match.team2.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {match.team2.player1_name} / {match.team2.player2_name}
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-center py-2">
+                                        <span className="text-2xl font-bold text-muted-foreground">VS</span>
+                                      </div>
+                                      <div className="p-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50">
+                                        <Label className="text-xs text-muted-foreground mb-2 block">
+                                          Seleccionar contrincante
+                                        </Label>
+                                        <Select
+                                          value={match.team2?.id || ""}
+                                          onValueChange={(value) => {
+                                            const selectedTeam = group.teams.find(t => t.id === value);
+                                            if (selectedTeam) {
+                                              const updatedMatches = matches.map(m =>
+                                                m.id === match.id ? { ...m, team2: selectedTeam } : m
+                                              );
+                                              setMatches(updatedMatches);
+                                            }
+                                          }}
+                                        >
+                                          <SelectTrigger className="bg-white">
+                                            <SelectValue placeholder="Seleccionar dupla..." />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {group.teams
+                                              .filter(t => t.id !== match.team1?.id)
+                                              .map(team => (
+                                                <SelectItem key={team.id} value={team.id}>
+                                                  {team.name}
+                                                </SelectItem>
+                                              ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="flex gap-2 pt-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="flex-1"
+                                      onClick={() => handleEditMatch(match)}
+                                    >
+                                      <Edit className="h-3 w-3 mr-1" />
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeleteMatch(match.id)}
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Botón de guardar */}
+            {groups.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  size="lg"
+                  onClick={handleSaveAll}
+                  disabled={isSaving}
+                  className="gap-2"
+                >
+                  {isSaving ? (
+                    <>Guardando...</>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Guardar Todo
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Dialog para editar partido */}
@@ -934,30 +1498,32 @@ const TournamentManager = () => {
                 {/* Set 2 */}
                 <div className="grid grid-cols-3 gap-4 items-end">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Set 2 - {editingMatch.team1.name}</Label>
+                    <Label className="text-xs text-muted-foreground">Set 2 - {editingMatch.team1.name} (Opcional)</Label>
                     <Input
                       type="number"
                       min="0"
-                      value={editingMatch.team1_set2}
+                      value={editingMatch.team1_set2 ?? ''}
                       onChange={(e) => setEditingMatch({
                         ...editingMatch,
-                        team1_set2: Number(e.target.value)
+                        team1_set2: e.target.value ? Number(e.target.value) : null
                       })}
+                      placeholder="Dejar vacío si no hubo 2do set"
                     />
                   </div>
                   <div className="flex items-end justify-center pb-2">
                     <span className="text-2xl font-bold text-muted-foreground">-</span>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Set 2 - {editingMatch.team2.name}</Label>
+                    <Label className="text-xs text-muted-foreground">Set 2 - {editingMatch.team2.name} (Opcional)</Label>
                     <Input
                       type="number"
                       min="0"
-                      value={editingMatch.team2_set2}
+                      value={editingMatch.team2_set2 ?? ''}
                       onChange={(e) => setEditingMatch({
                         ...editingMatch,
-                        team2_set2: Number(e.target.value)
+                        team2_set2: e.target.value ? Number(e.target.value) : null
                       })}
+                      placeholder="Dejar vacío si no hubo 2do set"
                     />
                   </div>
                 </div>

@@ -4,11 +4,15 @@ import { Trophy, Users, Target, Award, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 import whitePadelLogo from "@/assets/white-padel-logo.png";
 import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
+import { useTeams } from "@/hooks/useSupabase";
 
 const Index = () => {
+  const { data: masculinoTeams } = useTeams("Masculino");
+  const { data: femeninoTeams } = useTeams("Femenino");
+
   const categories = [
-    { id: "masculino", name: "Masculino", players: 0 },
-    { id: "femenino", name: "Femenino", players: 0 },
+    { id: "masculino", name: "Masculino", players: masculinoTeams?.length || 0 },
+    { id: "femenino", name: "Femenino", players: femeninoTeams?.length || 0 },
   ];
 
   return (
@@ -17,12 +21,11 @@ const Index = () => {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-center gap-4">
-            <img 
-              src={tournamentLogo} 
-              alt="White Padel Tournament" 
+            <img
+              src={tournamentLogo}
+              alt="White Padel Tournament"
               className="h-16 w-auto object-contain"
             />
-            <h1 className="text-3xl font-bold tracking-tight">White Padel Tournament</h1>
           </div>
         </div>
       </header>
@@ -61,99 +64,41 @@ const Index = () => {
           ))}
         </div>
 
-        {/* Main Tournament Card */}
-        <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300 mb-8 border-2 border-primary/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Target className="h-6 w-6" />
-              Gestor de Torneo
-            </CardTitle>
-            <CardDescription className="text-base">
-              ⚡ Nuevo módulo todo-en-uno: Configura grupos, genera partidos y registra resultados fácilmente
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/tournament">
-              <Button className="w-full" size="lg">
-                Abrir Gestor de Torneo
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
         {/* Action Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300 border-2 border-primary/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
                 <Target className="h-5 w-5" />
-                Gestión de Grupos
+                Gestor de Torneo
               </CardTitle>
               <CardDescription>
-                Organiza grupos y genera equipos
+                Configura grupos, genera partidos y registra resultados
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link to="/groups">
-                <Button className="w-full">
-                  Ver Grupos
+              <Link to="/tournament">
+                <Button className="w-full" size="lg">
+                  Abrir Gestor
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
+          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300 border-2 border-primary/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
                 <Calendar className="h-5 w-5" />
-                Gestión de Partidos
+                Tabla de Partidos
               </CardTitle>
               <CardDescription>
-                Programa y registra resultados
+                Visualiza todos los partidos programados y resultados
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link to="/matches">
-                <Button className="w-full">
-                  Ver Partidos
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Tabla de Posiciones
-              </CardTitle>
-              <CardDescription>
-                Consulta puntos y posiciones
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link to="/standings">
-                <Button className="w-full">
+              <Link to="/matches-table">
+                <Button className="w-full" size="lg" variant="outline">
                   Ver Tabla
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Award className="h-5 w-5" />
-                Eliminatorias
-              </CardTitle>
-              <CardDescription>
-                Cuartos, semis y final
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link to="/brackets">
-                <Button className="w-full">
-                  Ver Llaves
                 </Button>
               </Link>
             </CardContent>
