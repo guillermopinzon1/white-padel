@@ -7,12 +7,8 @@ import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
 
 const Index = () => {
   const categories = [
-    { id: "5-masculino", name: "5ta Masculino", players: 0 },
-    { id: "5-femenino", name: "5ta Femenino", players: 0 },
-    { id: "6-masculino", name: "6ta Masculino", players: 0 },
-    { id: "6-femenino", name: "6ta Femenino", players: 0 },
-    { id: "7-masculino", name: "7ta Masculino", players: 0 },
-    { id: "7-femenino", name: "7ta Femenino", players: 0 },
+    { id: "masculino", name: "Masculino", players: 0 },
+    { id: "femenino", name: "Femenino", players: 0 },
   ];
 
   return (
@@ -42,13 +38,13 @@ const Index = () => {
         </div>
 
         {/* Categories Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <div className="grid md:grid-cols-2 gap-8 mb-12 max-w-4xl mx-auto">
           {categories.map((category) => (
             <Card key={category.id} className="shadow-padel hover:shadow-padel-lg transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between text-xl">
                   <span>{category.name}</span>
-                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <Users className="h-6 w-6 text-muted-foreground" />
                 </CardTitle>
                 <CardDescription>
                   {category.players} duplas registradas
@@ -56,7 +52,7 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <Link to={`/category/${category.id}`}>
-                  <Button className="w-full" variant="outline">
+                  <Button className="w-full" variant="outline" size="lg">
                     Gestionar Categoría
                   </Button>
                 </Link>
@@ -64,6 +60,26 @@ const Index = () => {
             </Card>
           ))}
         </div>
+
+        {/* Main Tournament Card */}
+        <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300 mb-8 border-2 border-primary/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <Target className="h-6 w-6" />
+              Gestor de Torneo
+            </CardTitle>
+            <CardDescription className="text-base">
+              ⚡ Nuevo módulo todo-en-uno: Configura grupos, genera partidos y registra resultados fácilmente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/tournament">
+              <Button className="w-full" size="lg">
+                Abrir Gestor de Torneo
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* Action Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">

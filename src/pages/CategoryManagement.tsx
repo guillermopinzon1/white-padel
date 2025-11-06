@@ -26,16 +26,12 @@ const CategoryManagement = () => {
   const [partnerName, setPartnerName] = useState("");
   const [teamName, setTeamName] = useState("");
 
-  const categoryNames = {
-    "5-masculino": "5ta Masculino",
-    "5-femenino": "5ta Femenino",
-    "6-masculino": "6ta Masculino",
-    "6-femenino": "6ta Femenino",
-    "7-masculino": "7ta Masculino",
-    "7-femenino": "7ta Femenino",
+  const categoryNames: Record<string, string> = {
+    "masculino": "Masculino",
+    "femenino": "Femenino",
   };
 
-  const categoryName = categoryNames[categoryId as keyof typeof categoryNames] || "Categoría";
+  const categoryName = categoryNames[categoryId as string] || "Categoría";
 
   // Hooks de Supabase
   const { data: teams, isLoading } = useTeams(categoryName);
