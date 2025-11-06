@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Users, Target, Award } from "lucide-react";
+import { Trophy, Users, Target, Award, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 import whitePadelLogo from "@/assets/white-padel-logo.png";
 import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
@@ -66,15 +66,15 @@ const Index = () => {
         </div>
 
         {/* Action Cards */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="h-5 w-5" />
-                Grupos y Clasificación
+                Gestión de Grupos
               </CardTitle>
               <CardDescription>
-                Organiza grupos y gestiona las clasificaciones
+                Organiza grupos y genera equipos
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -89,11 +89,30 @@ const Index = () => {
           <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Gestión de Partidos
+              </CardTitle>
+              <CardDescription>
+                Programa y registra resultados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link to="/matches">
+                <Button className="w-full">
+                  Ver Partidos
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Trophy className="h-5 w-5" />
                 Tabla de Posiciones
               </CardTitle>
               <CardDescription>
-                Consulta puntos y posiciones actuales
+                Consulta puntos y posiciones
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -112,7 +131,7 @@ const Index = () => {
                 Eliminatorias
               </CardTitle>
               <CardDescription>
-                Cuartos, semis y final del torneo
+                Cuartos, semis y final
               </CardDescription>
             </CardHeader>
             <CardContent>

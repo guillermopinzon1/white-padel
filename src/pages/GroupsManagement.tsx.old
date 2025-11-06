@@ -1,0 +1,521 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Shuffle, Users, Settings, Move, Trophy, Loader2, Save } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useTeams, useCategories, useCreateGroup, useAddTeamToGroup } from "@/hooks/useSupabase";
+import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
+
+interface Team {
+  id: string;
+  name: string;
+  player1_name: string;
+  player2_name: string;
+  category: string;
+  wins: number;
+  losses: number;
+  gamesWon: number;
+  gamesLost: number;
+  isQualified: boolean;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  teams: Team[];
+}
+
+const GroupsManagement = () => {
+  const { toast } = useToast();
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [groupSize, setGroupSize] = useState<number>(4);
+  const [numberOfGroups, setNumberOfGroups] = useState<number>(2);
+  const [teamsToQualify, setTeamsToQualify] = useState<number>(4);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Hooks de Supabase
+  const { data: categories, isLoading: loadingCategories } = useCategories();
+  const { data: allTeams, isLoading: loadingTeams } = useTeams();
+  const createGroup = useCreateGroup();
+  const addTeamToGroup = useAddTeamToGroup();
+
+  // Mapear categorías para el formato del select
+  const categoryOptions = categories?.map(cat => ({
+    value: cat.name,
+    label: cat.name
+  })) || [];
+
+  const calculateQualified = (allGroups: Group[]) => {
+    const allTeams: (Team & { groupId: string; position: number })[] = [];
+    
+    // Crear array con todos los equipos y su posición en grupo
+    allGroups.forEach(group => {
+      const sortedTeams = [...group.teams].sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+        return a.gamesLost - b.gamesLost;
+      });
+      
+      sortedTeams.forEach((team, index) => {
+        allTeams.push({ ...team, groupId: group.id, position: index + 1 });
+      });
+    });
+
+    // Clasificar primeros lugares
+    const firstPlaces = allTeams.filter(team => team.position === 1);
+    let qualified = [...firstPlaces];
+
+    // Si necesitamos más equipos, tomar segundos lugares
+    if (qualified.length < teamsToQualify) {
+      const secondPlaces = allTeams
+        .filter(team => team.position === 2)
+        .sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+          return a.gamesLost - b.gamesLost;
+        });
+      
+      const needed = teamsToQualify - qualified.length;
+      qualified.push(...secondPlaces.slice(0, needed));
+    }
+
+    // Marcar equipos clasificados
+    const qualifiedIds = new Set(qualified.map(team => team.id));
+    return allGroups.map(group => ({
+      ...group,
+      teams: group.teams.map(team => ({
+        ...team,
+        isQualified: qualifiedIds.has(team.id)
+      }))
+    }));
+  };
+
+  const generateRandomGroups = () => {
+    if (!selectedCategory) {
+      toast({
+        title: "Error",
+        description: "Selecciona una categoría primero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!allTeams || allTeams.length === 0) {
+      toast({
+        title: "Sin equipos",
+        description: "No hay equipos registrados en el sistema",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Filtrar equipos por categoría seleccionada
+    const categoryTeams = allTeams
+      .filter(team => team.category === selectedCategory)
+      .map(team => ({
+        id: team.id,
+        name: team.name,
+        player1_name: team.player1_name,
+        player2_name: team.player2_name,
+        category: team.category,
+        wins: 0,
+        losses: 0,
+        gamesWon: 0,
+        gamesLost: 0,
+        isQualified: false
+      }));
+
+    if (categoryTeams.length === 0) {
+      toast({
+        title: "Sin equipos",
+        description: `No hay equipos registrados en la categoría "${selectedCategory}"`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Mezclar equipos aleatoriamente
+    const shuffledTeams = [...categoryTeams].sort(() => Math.random() - 0.5);
+    const newGroups: Group[] = [];
+
+    for (let i = 0; i < numberOfGroups; i++) {
+      const group: Group = {
+        id: `group-${i + 1}`,
+        name: `Grupo ${String.fromCharCode(65 + i)}`, // A, B, C, etc.
+        teams: []
+      };
+
+      // Distribuir equipos entre grupos
+      for (let j = i; j < shuffledTeams.length; j += numberOfGroups) {
+        if (group.teams.length < groupSize && shuffledTeams[j]) {
+          group.teams.push(shuffledTeams[j]);
+        }
+      }
+
+      newGroups.push(group);
+    }
+
+    setGroups(calculateQualified(newGroups));
+    toast({
+      title: "Grupos generados",
+      description: `Se han creado ${numberOfGroups} grupos con ${categoryTeams.length} equipos`,
+    });
+  };
+
+  const saveGroupsToSupabase = async () => {
+    if (groups.length === 0) {
+      toast({
+        title: "Error",
+        description: "No hay grupos para guardar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Crear cada grupo en Supabase
+      for (const group of groups) {
+        const createdGroup = await createGroup.mutateAsync({
+          name: group.name,
+          category: selectedCategory,
+        });
+
+        // Añadir equipos al grupo
+        for (const team of group.teams) {
+          await addTeamToGroup.mutateAsync({
+            groupId: createdGroup.id,
+            teamId: team.id,
+          });
+        }
+      }
+
+      toast({
+        title: "Grupos guardados",
+        description: "Los grupos se han guardado exitosamente en Supabase",
+      });
+    } catch (error) {
+      console.error("Error saving groups:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron guardar los grupos",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const moveTeam = (teamId: string, fromGroupId: string, toGroupId: string) => {
+    if (fromGroupId === toGroupId) return;
+
+    setGroups(prevGroups => {
+      const updatedGroups = prevGroups.map(group => {
+        if (group.id === fromGroupId) {
+          return {
+            ...group,
+            teams: group.teams.filter(team => team.id !== teamId)
+          };
+        }
+        if (group.id === toGroupId) {
+          const teamToMove = prevGroups
+            .find(g => g.id === fromGroupId)
+            ?.teams.find(t => t.id === teamId);
+
+          if (teamToMove && group.teams.length < groupSize) {
+            return {
+              ...group,
+              teams: [...group.teams, teamToMove]
+            };
+          }
+        }
+        return group;
+      });
+
+      return updatedGroups;
+    });
+
+    // Recalcular clasificados después del movimiento
+    setGroups(prevGroups => calculateQualified(prevGroups));
+
+    toast({
+      title: "Equipo movido",
+      description: "El equipo ha sido movido exitosamente",
+    });
+  };
+
+  if (loadingCategories || loadingTeams) {
+    return (
+      <div className="min-h-screen bg-padel-gradient flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver
+                </Button>
+              </Link>
+              <div className="h-8 w-px bg-border" />
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-foreground/5 p-2">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight">Gestión de Grupos</h1>
+                  <p className="text-xs text-muted-foreground">Organiza tu torneo</p>
+                </div>
+              </div>
+            </div>
+            <img src={tournamentLogo} alt="White Padel" className="h-10 w-auto" />
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-6 py-8 max-w-7xl">
+        {/* Configuration Panel */}
+        <div className="mb-8">
+          <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm shadow-sm">
+            <div className="border-b border-border/50 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-muted-foreground" />
+                <h2 className="text-lg font-semibold">Configuración de Grupos</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Define los parámetros del torneo</p>
+            </div>
+            <div className="p-6">
+              <div className="grid md:grid-cols-5 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categoría</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Seleccionar categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map(category => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="groupSize" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Equipos/Grupo</Label>
+                  <Input
+                    id="groupSize"
+                    type="number"
+                    min="2"
+                    max="8"
+                    value={groupSize}
+                    onChange={(e) => setGroupSize(Number(e.target.value))}
+                    className="h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="numberOfGroups" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">N° Grupos</Label>
+                  <Input
+                    id="numberOfGroups"
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={numberOfGroups}
+                    onChange={(e) => setNumberOfGroups(Number(e.target.value))}
+                    className="h-11"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="teamsToQualify" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Clasifican</Label>
+                  <Input
+                    id="teamsToQualify"
+                    type="number"
+                    min="1"
+                    max="16"
+                    value={teamsToQualify}
+                    onChange={(e) => setTeamsToQualify(Number(e.target.value))}
+                    className="h-11"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <Button onClick={generateRandomGroups} className="w-full h-11 gap-2 bg-foreground text-background hover:bg-foreground/90">
+                    <Shuffle className="h-4 w-4" />
+                    Generar Grupos
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Save Button */}
+        {groups.length > 0 && (
+          <div className="mb-8 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <p className="text-sm text-muted-foreground">
+                {groups.length} {groups.length === 1 ? 'grupo generado' : 'grupos generados'}
+              </p>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              onClick={saveGroupsToSupabase}
+              disabled={isSaving}
+              size="lg"
+              className="ml-4 gap-2 bg-foreground text-background hover:bg-foreground/90"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Guardar en Supabase
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Groups Display */}
+        {groups.length > 0 && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {groups.map((group) => (
+              <div key={group.id} className="group relative">
+                <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm transition-all hover:shadow-md hover:border-border">
+                  {/* Group Header */}
+                  <div className="border-b border-border/50 px-5 py-4">
+                    <h3 className="text-lg font-bold text-center tracking-tight">{group.name}</h3>
+                    <p className="text-xs text-center text-muted-foreground mt-1">
+                      {group.teams.length} {group.teams.length === 1 ? 'equipo' : 'equipos'}
+                    </p>
+                  </div>
+
+                  {/* Teams List */}
+                  <div className="p-4 space-y-3">
+                    {group.teams.map((team, index) => (
+                      <div
+                        key={team.id}
+                        className={`relative rounded-lg border transition-all duration-200 ${
+                          team.isQualified
+                            ? 'border-foreground/20 bg-foreground/5 shadow-sm'
+                            : 'border-border/50 bg-card/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            {/* Team Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-foreground/10 text-xs font-bold">
+                                  {index + 1}
+                                </span>
+                                {team.isQualified && (
+                                  <div className="flex items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
+                                    <Trophy className="h-3 w-3" />
+                                    <span className="text-xs font-medium">Clasifica</span>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="font-bold text-sm truncate mb-1">{team.name}</p>
+                              <p className="text-sm font-medium truncate">{team.player1_name}</p>
+                              <p className="text-sm text-muted-foreground truncate">{team.player2_name}</p>
+
+                              {/* Stats */}
+                              <div className="mt-3 flex items-center gap-3 text-xs">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">V:</span>
+                                  <span className="font-semibold">{team.wins}</span>
+                                </div>
+                                <div className="h-3 w-px bg-border" />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">D:</span>
+                                  <span className="font-semibold">{team.losses}</span>
+                                </div>
+                                <div className="h-3 w-px bg-border" />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">Games:</span>
+                                  <span className="font-semibold">{team.gamesWon}-{team.gamesLost}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Move Button */}
+                            <Select
+                              onValueChange={(value) => moveTeam(team.id, group.id, value)}
+                            >
+                              <SelectTrigger className="h-8 w-8 shrink-0 border-border/50 hover:border-border">
+                                <Move className="h-3.5 w-3.5" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groups
+                                  .filter(g => g.id !== group.id)
+                                  .map(g => (
+                                    <SelectItem
+                                      key={g.id}
+                                      value={g.id}
+                                      disabled={g.teams.length >= groupSize}
+                                    >
+                                      {g.name}
+                                    </SelectItem>
+                                  ))
+                                }
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {group.teams.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <Users className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                        <p className="text-sm text-muted-foreground">Grupo vacío</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {groups.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border/50 bg-muted/20 p-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-foreground/5">
+              <Users className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No hay grupos generados</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Configura los parámetros arriba y presiona "Generar Grupos" para comenzar a organizar tu torneo
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default GroupsManagement;

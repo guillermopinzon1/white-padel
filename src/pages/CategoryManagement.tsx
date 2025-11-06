@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, Users } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Users, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTeams, useCreateTeam, useUpdateTeam, useDeleteTeam } from "@/hooks/useSupabase";
 import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
 
 interface Player {
@@ -19,15 +20,15 @@ interface Player {
 const CategoryManagement = () => {
   const { categoryId } = useParams();
   const { toast } = useToast();
-  const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
   const [playerName, setPlayerName] = useState("");
   const [partnerName, setPartnerName] = useState("");
+  const [teamName, setTeamName] = useState("");
 
   const categoryNames = {
     "5-masculino": "5ta Masculino",
-    "5-femenino": "5ta Femenino", 
+    "5-femenino": "5ta Femenino",
     "6-masculino": "6ta Masculino",
     "6-femenino": "6ta Femenino",
     "7-masculino": "7ta Masculino",
@@ -36,7 +37,13 @@ const CategoryManagement = () => {
 
   const categoryName = categoryNames[categoryId as keyof typeof categoryNames] || "Categoría";
 
-  const handleSavePlayer = () => {
+  // Hooks de Supabase
+  const { data: teams, isLoading } = useTeams(categoryName);
+  const createTeam = useCreateTeam();
+  const updateTeam = useUpdateTeam();
+  const deleteTeam = useDeleteTeam();
+
+  const handleSavePlayer = async () => {
     if (!playerName.trim() || !partnerName.trim()) {
       toast({
         title: "Error",
@@ -46,50 +53,73 @@ const CategoryManagement = () => {
       return;
     }
 
-    if (editingPlayer) {
-      setPlayers(players.map(p => 
-        p.id === editingPlayer.id 
-          ? { ...p, name: playerName, partner: partnerName }
-          : p
-      ));
-      toast({
-        title: "Dupla actualizada",
-        description: `${playerName} y ${partnerName} han sido actualizados`,
-      });
-    } else {
-      const newPlayer: Player = {
-        id: Date.now().toString(),
-        name: playerName,
-        partner: partnerName,
-      };
-      setPlayers([...players, newPlayer]);
-      toast({
-        title: "Dupla agregada",
-        description: `${playerName} y ${partnerName} han sido registrados`,
-      });
-    }
+    const generatedTeamName = teamName.trim() || `${playerName} / ${partnerName}`;
 
-    setPlayerName("");
-    setPartnerName("");
-    setEditingPlayer(null);
-    setIsDialogOpen(false);
+    try {
+      if (editingPlayer) {
+        await updateTeam.mutateAsync({
+          id: editingPlayer.id,
+          name: generatedTeamName,
+          player1_name: playerName,
+          player2_name: partnerName,
+        });
+        toast({
+          title: "Dupla actualizada",
+          description: `${playerName} y ${partnerName} han sido actualizados`,
+        });
+      } else {
+        await createTeam.mutateAsync({
+          name: generatedTeamName,
+          player1_name: playerName,
+          player2_name: partnerName,
+          category: categoryName,
+        });
+        toast({
+          title: "Dupla agregada",
+          description: `${playerName} y ${partnerName} han sido registrados en Supabase`,
+        });
+      }
+
+      setPlayerName("");
+      setPartnerName("");
+      setTeamName("");
+      setEditingPlayer(null);
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la dupla. Verifica tu conexión.",
+        variant: "destructive",
+      });
+      console.error("Error saving team:", error);
+    }
   };
 
-  const handleEditPlayer = (player: Player) => {
-    setEditingPlayer(player);
-    setPlayerName(player.name);
-    setPartnerName(player.partner);
+  const handleEditPlayer = (team: any) => {
+    setEditingPlayer(team);
+    setTeamName(team.name);
+    setPlayerName(team.player1_name);
+    setPartnerName(team.player2_name);
     setIsDialogOpen(true);
   };
 
-  const handleDeletePlayer = (playerId: string) => {
-    const player = players.find(p => p.id === playerId);
-    setPlayers(players.filter(p => p.id !== playerId));
-    if (player) {
+  const handleDeletePlayer = async (teamId: string) => {
+    const team = teams?.find(t => t.id === teamId);
+    try {
+      await deleteTeam.mutateAsync(teamId);
+      if (team) {
+        toast({
+          title: "Dupla eliminada",
+          description: `${team.player1_name} y ${team.player2_name} han sido eliminados`,
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Dupla eliminada",
-        description: `${player.name} y ${player.partner} han sido eliminados`,
+        title: "Error",
+        description: "No se pudo eliminar la dupla",
+        variant: "destructive",
       });
+      console.error("Error deleting team:", error);
     }
   };
 
@@ -97,8 +127,20 @@ const CategoryManagement = () => {
     setEditingPlayer(null);
     setPlayerName("");
     setPartnerName("");
+    setTeamName("");
     setIsDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-padel-gradient flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando equipos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-padel-gradient">
@@ -126,7 +168,7 @@ const CategoryManagement = () => {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-semibold">Duplas Registradas</h2>
-            <p className="text-muted-foreground">{players.length} duplas en total</p>
+            <p className="text-muted-foreground">{teams?.length || 0} duplas en total</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -142,6 +184,18 @@ const CategoryManagement = () => {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                <div>
+                  <Label htmlFor="teamName">Nombre del Equipo (Opcional)</Label>
+                  <Input
+                    id="teamName"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="Ej: Los Campeones"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Si no ingresas un nombre, se usará: Jugador 1 / Jugador 2
+                  </p>
+                </div>
                 <div>
                   <Label htmlFor="player1">Jugador 1</Label>
                   <Input
@@ -178,35 +232,37 @@ const CategoryManagement = () => {
             <CardTitle>Lista de Duplas</CardTitle>
           </CardHeader>
           <CardContent>
-            {players.length > 0 ? (
+            {teams && teams.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>#</TableHead>
+                    <TableHead>Nombre del Equipo</TableHead>
                     <TableHead>Jugador 1</TableHead>
                     <TableHead>Jugador 2</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {players.map((player, index) => (
-                    <TableRow key={player.id}>
+                  {teams.map((team, index) => (
+                    <TableRow key={team.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell>{player.name}</TableCell>
-                      <TableCell>{player.partner}</TableCell>
+                      <TableCell className="font-semibold">{team.name}</TableCell>
+                      <TableCell>{team.player1_name}</TableCell>
+                      <TableCell>{team.player2_name}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleEditPlayer(player)}
+                            onClick={() => handleEditPlayer(team)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeletePlayer(player.id)}
+                            onClick={() => handleDeletePlayer(team.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

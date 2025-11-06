@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import CategoryManagement from "./pages/CategoryManagement";
 import GroupsManagement from "./pages/GroupsManagement";
+import MatchesManagement from "./pages/MatchesManagement";
 import Standings from "./pages/Standings";
 import Brackets from "./pages/Brackets";
 import NotFound from "./pages/NotFound";
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/category/:categoryId" element={<CategoryManagement />} />
           <Route path="/groups" element={<GroupsManagement />} />
+          <Route path="/matches" element={<MatchesManagement />} />
           <Route path="/standings" element={<Standings />} />
           <Route path="/brackets" element={<Brackets />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
