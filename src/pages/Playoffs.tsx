@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Save, Edit2, Crown, X } from "lucide-react";
+import { ArrowLeft, Trophy, Edit2, Crown, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTeams } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
@@ -47,7 +47,6 @@ const Playoffs = () => {
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const { data: allTeams } = useTeams(selectedCategory);
 
@@ -192,7 +191,7 @@ const Playoffs = () => {
     setFinal(newFinal);
   };
 
-  const advanceWinner = (match: Match) => {
+  const advanceWinnerAndSave = async (match: Match) => {
     if (!match.winner_id) return;
 
     const winner = match.winner_id === match.team1?.id ? match.team1 : match.team2;
@@ -205,10 +204,17 @@ const Playoffs = () => {
 
       setSemifinals(prev => prev.map(semi => {
         if (semi.position === semiPosition) {
-          return {
+          const updatedSemi = {
             ...semi,
             [semiSlot]: winner
           };
+
+          // Si ambos equipos están asignados, guardar en DB
+          if (updatedSemi.team1 && updatedSemi.team2) {
+            saveMatchToDB(updatedSemi);
+          }
+
+          return updatedSemi;
         }
         return semi;
       }));
@@ -219,10 +225,17 @@ const Playoffs = () => {
 
       setFinal(prev => {
         if (!prev) return prev;
-        return {
+        const updatedFinal = {
           ...prev,
           [finalSlot]: winner
         };
+
+        // Si ambos equipos están asignados, guardar en DB
+        if (updatedFinal.team1 && updatedFinal.team2) {
+          saveMatchToDB(updatedFinal);
+        }
+
+        return updatedFinal;
       });
     }
   };
@@ -255,7 +268,7 @@ const Playoffs = () => {
     }
   };
 
-  const onDragEnd = (result: DropResult) => {
+  const onDragEnd = async (result: DropResult) => {
     const { source, destination } = result;
     if (!destination) return;
 
@@ -270,26 +283,105 @@ const Playoffs = () => {
     const pos = parseInt(position);
 
     let updatedMatch: Match | undefined;
+    let matchArray: Match[] = [];
 
     if (phase === 'quarterfinals') {
-      const updated = [...quarterfinals];
-      updatedMatch = { ...updated[pos] };
+      matchArray = [...quarterfinals];
+      updatedMatch = { ...matchArray[pos] };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
-      updated[pos] = updatedMatch;
-      setQuarterfinals(updated);
+      matchArray[pos] = updatedMatch;
+      setQuarterfinals(matchArray);
     } else if (phase === 'semifinals') {
-      const updated = [...semifinals];
-      updatedMatch = { ...updated[pos] };
+      matchArray = [...semifinals];
+      updatedMatch = { ...matchArray[pos] };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
-      updated[pos] = updatedMatch;
-      setSemifinals(updated);
+      matchArray[pos] = updatedMatch;
+      setSemifinals(matchArray);
     } else if (phase === 'final' && final) {
       updatedMatch = { ...final };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
       setFinal(updatedMatch);
+    }
+
+    // Si ambos equipos están asignados, guardar en DB automáticamente
+    if (updatedMatch && updatedMatch.team1 && updatedMatch.team2) {
+      await saveMatchToDB(updatedMatch);
+    }
+  };
+
+  const saveMatchToDB = async (match: Match) => {
+    if (!match.team1 || !match.team2) return null;
+
+    try {
+      // Si es temporal, crear nuevo registro
+      if (match.id.startsWith('temp-')) {
+        const { data, error } = await supabase
+          .from('matches')
+          .insert({
+            category: selectedCategory,
+            phase: match.phase,
+            position: match.position,
+            team1_id: match.team1.id,
+            team2_id: match.team2.id,
+            team1_set1: match.team1_set1,
+            team1_set2: match.team1_set2,
+            team1_set3: match.team1_set3,
+            team2_set1: match.team2_set1,
+            team2_set2: match.team2_set2,
+            team2_set3: match.team2_set3,
+            winner_id: match.winner_id,
+            status: match.status
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Actualizar el ID del match con el ID real de la DB
+        const updatedMatch = { ...match, id: data.id };
+
+        // Actualizar en el estado local
+        if (match.phase === 'quarterfinals') {
+          setQuarterfinals(prev => prev.map(m => m.position === match.position ? updatedMatch : m));
+        } else if (match.phase === 'semifinals') {
+          setSemifinals(prev => prev.map(m => m.position === match.position ? updatedMatch : m));
+        } else if (match.phase === 'final') {
+          setFinal(updatedMatch);
+        }
+
+        return data.id;
+      } else {
+        // Ya existe, actualizar
+        const { error } = await supabase
+          .from('matches')
+          .update({
+            team1_id: match.team1.id,
+            team2_id: match.team2.id,
+            team1_set1: match.team1_set1,
+            team1_set2: match.team1_set2,
+            team1_set3: match.team1_set3,
+            team2_set1: match.team2_set1,
+            team2_set2: match.team2_set2,
+            team2_set3: match.team2_set3,
+            winner_id: match.winner_id,
+            status: match.status
+          })
+          .eq('id', match.id);
+
+        if (error) throw error;
+        return match.id;
+      }
+    } catch (error) {
+      console.error("Error saving match:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el partido",
+        variant: "destructive"
+      });
+      return null;
     }
   };
 
@@ -340,45 +432,27 @@ const Playoffs = () => {
     }
 
     try {
-      if (updatedMatch.id.startsWith('temp-')) {
-        toast({
-          title: "Error",
-          description: "Guarda primero los brackets con 'Guardar Todo'",
-          variant: "destructive"
-        });
-        return;
+      // Guardar en DB
+      const savedId = await saveMatchToDB(updatedMatch);
+
+      if (!savedId) {
+        return; // Error ya mostrado por saveMatchToDB
       }
 
-      const { error } = await supabase
-        .from('matches')
-        .update({
-          team1_id: updatedMatch.team1.id,
-          team2_id: updatedMatch.team2.id,
-          team1_set1: updatedMatch.team1_set1,
-          team1_set2: updatedMatch.team1_set2,
-          team1_set3: updatedMatch.team1_set3,
-          team2_set1: updatedMatch.team2_set1,
-          team2_set2: updatedMatch.team2_set2,
-          team2_set3: updatedMatch.team2_set3,
-          winner_id: updatedMatch.winner_id,
-          status: updatedMatch.status
-        })
-        .eq('id', updatedMatch.id);
+      // Actualizar estado local con el match guardado
+      updatedMatch.id = savedId;
 
-      if (error) throw error;
-
-      // Actualizar estado local
       if (updatedMatch.phase === 'quarterfinals') {
-        setQuarterfinals(prev => prev.map(m => m.id === updatedMatch.id ? updatedMatch : m));
+        setQuarterfinals(prev => prev.map(m => m.position === updatedMatch.position ? updatedMatch : m));
       } else if (updatedMatch.phase === 'semifinals') {
-        setSemifinals(prev => prev.map(m => m.id === updatedMatch.id ? updatedMatch : m));
+        setSemifinals(prev => prev.map(m => m.position === updatedMatch.position ? updatedMatch : m));
       } else if (updatedMatch.phase === 'final') {
         setFinal(updatedMatch);
       }
 
-      // Avanzar ganador a siguiente ronda
+      // Avanzar ganador a siguiente ronda y guardar
       if (updatedMatch.status === 'completed') {
-        advanceWinner(updatedMatch);
+        await advanceWinnerAndSave(updatedMatch);
       }
 
       setIsMatchDialogOpen(false);
@@ -400,97 +474,6 @@ const Playoffs = () => {
     }
   };
 
-  const handleSaveAll = async () => {
-    if (!selectedCategory) return;
-
-    setIsSaving(true);
-
-    try {
-      // Eliminar partidos existentes de playoffs
-      await supabase
-        .from('matches')
-        .delete()
-        .eq('category', selectedCategory)
-        .in('phase', ['quarterfinals', 'semifinals', 'final']);
-
-      // Guardar cuartos de final
-      for (const match of quarterfinals) {
-        if (match.team1 && match.team2) {
-          await supabase.from('matches').insert({
-            category: selectedCategory,
-            phase: 'quarterfinals',
-            position: match.position,
-            team1_id: match.team1.id,
-            team2_id: match.team2.id,
-            team1_set1: match.team1_set1,
-            team1_set2: match.team1_set2,
-            team1_set3: match.team1_set3,
-            team2_set1: match.team2_set1,
-            team2_set2: match.team2_set2,
-            team2_set3: match.team2_set3,
-            winner_id: match.winner_id,
-            status: match.status
-          });
-        }
-      }
-
-      // Guardar semifinales
-      for (const match of semifinals) {
-        if (match.team1 && match.team2) {
-          await supabase.from('matches').insert({
-            category: selectedCategory,
-            phase: 'semifinals',
-            position: match.position,
-            team1_id: match.team1.id,
-            team2_id: match.team2.id,
-            team1_set1: match.team1_set1,
-            team1_set2: match.team1_set2,
-            team1_set3: match.team1_set3,
-            team2_set1: match.team2_set1,
-            team2_set2: match.team2_set2,
-            team2_set3: match.team2_set3,
-            winner_id: match.winner_id,
-            status: match.status
-          });
-        }
-      }
-
-      // Guardar final
-      if (final && final.team1 && final.team2) {
-        await supabase.from('matches').insert({
-          category: selectedCategory,
-          phase: 'final',
-          position: 0,
-          team1_id: final.team1.id,
-          team2_id: final.team2.id,
-          team1_set1: final.team1_set1,
-          team1_set2: final.team1_set2,
-          team1_set3: final.team1_set3,
-          team2_set1: final.team2_set1,
-          team2_set2: final.team2_set2,
-          team2_set3: final.team2_set3,
-          winner_id: final.winner_id,
-          status: final.status
-        });
-      }
-
-      toast({
-        title: "¡Guardado exitoso!",
-        description: "Todas las eliminatorias se guardaron correctamente"
-      });
-
-      await loadPlayoffs();
-    } catch (error) {
-      console.error("Error saving:", error);
-      toast({
-        title: "Error",
-        description: "No se pudieron guardar las eliminatorias",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const renderMatchCard = (match: Match, phaseLabel: string) => (
     <Card
@@ -651,15 +634,9 @@ const Playoffs = () => {
                   <SelectItem value="Femenino">Femenino</SelectItem>
                 </SelectContent>
               </Select>
-
-              <Button
-                onClick={handleSaveAll}
-                disabled={isSaving}
-                className="w-full sm:w-auto gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {isSaving ? "Guardando..." : "Guardar Todo"}
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                💾 Los cambios se guardan automáticamente
+              </p>
             </div>
           </CardContent>
         </Card>
