@@ -128,42 +128,48 @@ const MatchesTable = () => {
     const groupsArray = Array.from(standings.entries());
     const groupCount = groupsArray.length;
 
-    // Si hay 2 grupos o número par, mostrar en grid
-    const gridCols = groupCount === 2 || (groupCount > 2 && groupCount % 2 === 0) ? 'grid-cols-2' : 'grid-cols-1';
+    // Si hay 2 grupos, mostrar en grid con mejor espaciado
+    const gridCols = groupCount === 2 ? 'grid-cols-2' : 'grid-cols-1';
 
     return (
-      <div className={`grid ${gridCols} gap-3 mb-4`}>
+      <div className={`grid ${gridCols} gap-4 mb-4`}>
         {groupsArray.map(([groupName, groupStandings]) => (
-          <Card key={groupName} className="bg-white/60">
+          <Card key={groupName} className="bg-white/60 min-w-0">
             <CardHeader className="py-2 px-3">
-              <CardTitle className="text-sm font-bold">{groupName}</CardTitle>
+              <CardTitle className="text-sm font-bold break-words">{groupName}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left py-1 px-2 font-semibold">#</th>
-                    <th className="text-left py-1 px-2 font-semibold">Dupla</th>
-                    <th className="text-center py-1 px-2 font-semibold">PJ</th>
-                    <th className="text-center py-1 px-2 font-semibold">PG</th>
-                    <th className="text-center py-1 px-2 font-semibold">PP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupStandings.map((standing, index) => (
-                    <tr
-                      key={standing.teamId}
-                      className={`border-t ${index < 2 ? 'bg-green-50/50' : ''}`}
-                    >
-                      <td className="py-1 px-2 font-bold">{index + 1}</td>
-                      <td className="py-1 px-2 font-semibold truncate max-w-[150px]">{standing.teamName}</td>
-                      <td className="py-1 px-2 text-center">{standing.played}</td>
-                      <td className="py-1 px-2 text-center font-bold text-green-600">{standing.won}</td>
-                      <td className="py-1 px-2 text-center text-red-600">{standing.lost}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left py-1.5 px-2 font-semibold w-8">#</th>
+                      <th className="text-left py-1.5 px-2 font-semibold min-w-[120px]">Dupla</th>
+                      <th className="text-center py-1.5 px-2 font-semibold w-10">PJ</th>
+                      <th className="text-center py-1.5 px-2 font-semibold w-10">PG</th>
+                      <th className="text-center py-1.5 px-2 font-semibold w-10">PP</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {groupStandings.map((standing, index) => (
+                      <tr
+                        key={standing.teamId}
+                        className={`border-t ${index < 2 ? 'bg-green-50/50' : ''}`}
+                      >
+                        <td className="py-1.5 px-2 font-bold">{index + 1}</td>
+                        <td className="py-1.5 px-2 font-semibold break-words max-w-[200px]">
+                          <span className="block truncate" title={standing.teamName}>
+                            {standing.teamName}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-center">{standing.played}</td>
+                        <td className="py-1.5 px-2 text-center font-bold text-green-600">{standing.won}</td>
+                        <td className="py-1.5 px-2 text-center text-red-600">{standing.lost}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -234,7 +240,7 @@ const MatchesTable = () => {
     }
   };
 
-  const renderMatchCards = (matches: Match[]) => {
+  const renderMatchCards = (matches: Match[], category?: string) => {
     if (matches.length === 0) {
       return (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -260,18 +266,20 @@ const MatchesTable = () => {
     const groupsArray = Object.entries(groupedMatches);
     const groupCount = groupsArray.length;
 
-    // Si hay 2 grupos o número par, mostrar en grid
-    const useGrid = groupCount === 2 || (groupCount > 2 && groupCount % 2 === 0);
+    // Si hay 2 grupos, mostrar en grid con mejor espaciado
+    // EXCEPTO para Femenino, que siempre se muestra uno debajo del otro
+    const isFemenino = category === 'Femenino' || (matches.length > 0 && matches[0].team1?.category === 'Femenino');
+    const useGrid = groupCount === 2 && !isFemenino;
 
     return (
-      <div className={useGrid ? 'grid grid-cols-2 gap-4' : 'space-y-4'}>
+      <div className={useGrid ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'space-y-6'}>
         {groupsArray.map(([groupName, groupMatches], groupIndex) => (
-          <div key={groupName} className={groupIndex > 0 && !useGrid ? 'border-t-2 border-primary/20 pt-4' : ''}>
-            <h3 className="text-base font-bold mb-2 text-primary flex items-center gap-2">
-              <span className="h-1 w-8 bg-primary rounded-full"></span>
-              {groupName}
+          <div key={groupName} className={`min-w-0 ${groupIndex > 0 && !useGrid ? 'border-t-2 border-primary/20 pt-4' : ''}`}>
+            <h3 className="text-base font-bold mb-3 text-primary flex items-center gap-2 break-words">
+              <span className="h-1 w-8 bg-primary rounded-full flex-shrink-0"></span>
+              <span className="break-words">{groupName}</span>
             </h3>
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {groupMatches.map((match, index) => {
                 const team1Sets = [
                   match.team1_set1 > match.team2_set1 ? 1 : 0,
@@ -298,29 +306,31 @@ const MatchesTable = () => {
                       isCompleted ? 'bg-green-50/50 border-green-400/40' : 'bg-slate-50/50'
                     }`}
                   >
-                    <CardContent className="p-2">
-                      <div className="flex items-center gap-2">
+                    <CardContent className="p-3">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         {/* Número de partido y estado */}
-                        <div className="flex items-center gap-1 min-w-[50px]">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0">#{index + 1}</Badge>
-                          <Badge variant={isCompleted ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5">#{index + 1}</Badge>
+                          <Badge variant={isCompleted ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0.5">
                             {isCompleted ? '✓' : '○'}
                           </Badge>
                         </div>
 
                         {/* Equipo 1 */}
-                        <div className={`flex-1 px-2 py-2 rounded border flex items-center ${
+                        <div className={`flex-1 min-w-0 px-3 py-2 rounded border flex items-center ${
                           isCompleted && match.winner_id === match.team1.id
                             ? 'bg-green-100 border-green-500 font-bold'
                             : 'bg-white/80'
                         }`}>
-                          <p className="text-sm font-semibold truncate">{match.team1.name}</p>
+                          <p className="text-sm font-semibold truncate w-full" title={match.team1.name}>
+                            {match.team1.name}
+                          </p>
                         </div>
 
                         {/* Marcador compacto */}
                         {isCompleted ? (
-                          <div className="flex items-center gap-1.5 min-w-[100px] justify-center font-mono">
-                            <div className="flex gap-0.5 text-sm font-bold">
+                          <div className="flex items-center gap-1.5 min-w-[90px] sm:min-w-[110px] justify-center font-mono flex-shrink-0">
+                            <div className="flex gap-0.5 text-xs sm:text-sm font-bold">
                               <span className={match.team1_set1 > match.team2_set1 ? 'text-green-600' : 'text-gray-600'}>{match.team1_set1}</span>
                               <span className="text-gray-400">-</span>
                               <span className={match.team2_set1 > match.team1_set1 ? 'text-green-600' : 'text-gray-600'}>{match.team2_set1}</span>
@@ -328,7 +338,7 @@ const MatchesTable = () => {
                             {match.team1_set2 !== null && match.team2_set2 !== null && (
                               <>
                                 <span className="text-gray-300">|</span>
-                                <div className="flex gap-0.5 text-sm font-bold">
+                                <div className="flex gap-0.5 text-xs sm:text-sm font-bold">
                                   <span className={match.team1_set2 > match.team2_set2 ? 'text-green-600' : 'text-gray-600'}>{match.team1_set2}</span>
                                   <span className="text-gray-400">-</span>
                                   <span className={match.team2_set2 > match.team1_set2 ? 'text-green-600' : 'text-gray-600'}>{match.team2_set2}</span>
@@ -338,7 +348,7 @@ const MatchesTable = () => {
                             {match.team1_set3 !== null && match.team2_set3 !== null && (
                               <>
                                 <span className="text-gray-300">|</span>
-                                <div className="flex gap-0.5 text-sm font-bold">
+                                <div className="flex gap-0.5 text-xs sm:text-sm font-bold">
                                   <span className={match.team1_set3 > match.team2_set3 ? 'text-green-600' : 'text-gray-600'}>{match.team1_set3}</span>
                                   <span className="text-gray-400">-</span>
                                   <span className={match.team2_set3 > match.team1_set3 ? 'text-green-600' : 'text-gray-600'}>{match.team2_set3}</span>
@@ -347,18 +357,20 @@ const MatchesTable = () => {
                             )}
                           </div>
                         ) : (
-                          <div className="min-w-[100px] text-center">
-                            <span className="text-base font-bold text-gray-400">VS</span>
+                          <div className="min-w-[90px] sm:min-w-[110px] text-center flex-shrink-0">
+                            <span className="text-sm sm:text-base font-bold text-gray-400">VS</span>
                           </div>
                         )}
 
                         {/* Equipo 2 */}
-                        <div className={`flex-1 px-2 py-2 rounded border flex items-center ${
+                        <div className={`flex-1 min-w-0 px-3 py-2 rounded border flex items-center ${
                           isCompleted && match.winner_id === match.team2.id
                             ? 'bg-green-100 border-green-500 font-bold'
                             : 'bg-white/80'
                         }`}>
-                          <p className="text-sm font-semibold truncate">{match.team2.name}</p>
+                          <p className="text-sm font-semibold truncate w-full" title={match.team2.name}>
+                            {match.team2.name}
+                          </p>
                         </div>
                       </div>
                     </CardContent>
@@ -424,13 +436,13 @@ const MatchesTable = () => {
 
           {/* Vista Todos - Lado a lado */}
           <TabsContent value="todos">
-            <div className="space-y-4 max-w-[98vw] mx-auto">
+            <div className="space-y-6 max-w-[98vw] mx-auto">
               {/* Fila de Posiciones */}
-              <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '3fr 2fr' }}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 {/* Columna Masculino - Posiciones */}
-                <Card className="border-2 border-blue-400/50 bg-blue-50/30 h-full">
+                <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
                   <CardHeader className="bg-blue-100/50 py-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-lg font-bold">MASCULINO - POSICIONES</CardTitle>
                       <Badge variant="secondary" className="text-xs">
                         {masculinoMatches.filter(m => m.status === 'completed').length}/{masculinoMatches.length}
@@ -443,9 +455,9 @@ const MatchesTable = () => {
                 </Card>
 
                 {/* Columna Femenino - Posiciones */}
-                <Card className="border-2 border-pink-400/50 bg-pink-50/30 h-full">
+                <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
                   <CardHeader className="bg-pink-100/50 py-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-lg font-bold">FEMENINO - POSICIONES</CardTitle>
                       <Badge variant="secondary" className="text-xs">
                         {femeninoMatches.filter(m => m.status === 'completed').length}/{femeninoMatches.length}
@@ -459,24 +471,24 @@ const MatchesTable = () => {
               </div>
 
               {/* Fila de Partidos */}
-              <div className="grid gap-4" style={{ gridTemplateColumns: '3fr 2fr' }}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Columna Masculino - Partidos */}
-                <Card className="border-2 border-blue-400/50 bg-blue-50/30">
+                <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
                   <CardHeader className="bg-blue-100/50 py-3">
                     <CardTitle className="text-lg font-bold">MASCULINO - PARTIDOS</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 pb-4">
-                    {renderMatchCards(masculinoMatches)}
+                    {renderMatchCards(masculinoMatches, 'Masculino')}
                   </CardContent>
                 </Card>
 
                 {/* Columna Femenino - Partidos */}
-                <Card className="border-2 border-pink-400/50 bg-pink-50/30">
+                <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
                   <CardHeader className="bg-pink-100/50 py-3">
                     <CardTitle className="text-lg font-bold">FEMENINO - PARTIDOS</CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 pb-4">
-                    {renderMatchCards(femeninoMatches)}
+                    {renderMatchCards(femeninoMatches, 'Femenino')}
                   </CardContent>
                 </Card>
               </div>
@@ -492,7 +504,7 @@ const MatchesTable = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderMatchCards(masculinoMatches)}
+                {renderMatchCards(masculinoMatches, 'Masculino')}
               </CardContent>
             </Card>
           </TabsContent>
@@ -506,7 +518,7 @@ const MatchesTable = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {renderMatchCards(femeninoMatches)}
+                {renderMatchCards(femeninoMatches, 'Femenino')}
               </CardContent>
             </Card>
           </TabsContent>

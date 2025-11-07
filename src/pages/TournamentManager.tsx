@@ -67,6 +67,8 @@ const TournamentManager = () => {
 
   const { data: categories } = useCategories();
   const { data: allTeams } = useTeams(selectedCategory);
+  const { data: masculinoTeams } = useTeams("Masculino");
+  const { data: femeninoTeams } = useTeams("Femenino");
 
   // Cargar grupos y partidos existentes cuando se selecciona una categoría
   useEffect(() => {
@@ -612,14 +614,23 @@ const TournamentManager = () => {
         <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
             <TabsTrigger value="Masculino" className="text-xs sm:text-sm">
-              <span className="hidden sm:inline">Masculino ({allTeams?.length || 0} duplas)</span>
-              <span className="sm:hidden">Masc ({allTeams?.length || 0})</span>
+              <span className="hidden sm:inline">Masculino</span>
+              <span className="sm:hidden">Masc</span>
             </TabsTrigger>
             <TabsTrigger value="Femenino" className="text-xs sm:text-sm">
               <span className="hidden sm:inline">Femenino</span>
               <span className="sm:hidden">Fem</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Mostrar número de duplas debajo de las pestañas */}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              {selectedCategory === "Masculino" 
+                ? `${masculinoTeams?.length || 0} duplas registradas`
+                : `${femeninoTeams?.length || 0} duplas registradas`}
+            </p>
+          </div>
 
           <TabsContent value="Masculino" className="space-y-6">
             {/* Contenido de Masculino */}
