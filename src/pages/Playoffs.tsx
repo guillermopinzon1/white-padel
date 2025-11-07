@@ -594,19 +594,19 @@ const Playoffs = () => {
           </CardContent>
         </Card>
 
-        {/* Equipos disponibles */}
-        {availableTeams.length > 0 && (
-          <Card className="mb-4 sm:mb-6 border-2 border-primary/20 bg-primary/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm sm:text-base">
-                Equipos Disponibles ({availableTeams.length})
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Arrastra los equipos a los partidos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DragDropContext onDragEnd={onDragEnd}>
+        <DragDropContext onDragEnd={onDragEnd}>
+          {/* Equipos disponibles */}
+          {availableTeams.length > 0 && (
+            <Card className="mb-4 sm:mb-6 border-2 border-primary/20 bg-primary/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm sm:text-base">
+                  Equipos Disponibles ({availableTeams.length})
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Arrastra los equipos a los partidos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Droppable droppableId="available-teams">
                   {(provided) => (
                     <div
@@ -639,13 +639,11 @@ const Playoffs = () => {
                     </div>
                   )}
                 </Droppable>
-              </DragDropContext>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
 
-        {quarterfinals.length > 0 && (
-          <DragDropContext onDragEnd={onDragEnd}>
+          {quarterfinals.length > 0 && (
             <div className="space-y-6">
               {/* Cuartos de Final */}
               {quarterfinals.length > 0 && (
@@ -695,8 +693,8 @@ const Playoffs = () => {
                 </div>
               )}
             </div>
-          </DragDropContext>
-        )}
+          )}
+        </DragDropContext>
       </main>
 
       {/* Dialog editar partido */}
