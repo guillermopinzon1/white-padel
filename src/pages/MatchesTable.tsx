@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Trophy } from "lucide-react";
 import tournamentLogo from "@/assets/white-padel-tournament-logo.png";
@@ -421,108 +420,63 @@ const MatchesTable = () => {
       </header>
 
       <main className="px-4 py-6">
-        <Tabs defaultValue="todos" className="space-y-4">
-          <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3">
-            <TabsTrigger value="todos">
-              Ver Todos ({masculinoMatches.length + femeninoMatches.length} partidos)
-            </TabsTrigger>
-            <TabsTrigger value="masculino">
-              Masculino ({masculinoMatches.length})
-            </TabsTrigger>
-            <TabsTrigger value="femenino">
-              Femenino ({femeninoMatches.length})
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Vista Todos - Lado a lado */}
-          <TabsContent value="todos">
-            <div className="space-y-6 max-w-[98vw] mx-auto">
-              {/* Fila de Posiciones */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* Columna Masculino - Posiciones */}
-                <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
-                  <CardHeader className="bg-blue-100/50 py-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <CardTitle className="text-lg font-bold">MASCULINO - POSICIONES</CardTitle>
-                      <Badge variant="secondary" className="text-xs">
-                        {masculinoMatches.filter(m => m.status === 'completed').length}/{masculinoMatches.length}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-4 pb-4">
-                    {renderStandingsTable(masculinoMatches)}
-                  </CardContent>
-                </Card>
-
-                {/* Columna Femenino - Posiciones */}
-                <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
-                  <CardHeader className="bg-pink-100/50 py-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <CardTitle className="text-lg font-bold">FEMENINO - POSICIONES</CardTitle>
-                      <Badge variant="secondary" className="text-xs">
-                        {femeninoMatches.filter(m => m.status === 'completed').length}/{femeninoMatches.length}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-4 pb-4">
-                    {renderStandingsTable(femeninoMatches)}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Fila de Partidos */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Columna Masculino - Partidos */}
-                <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
-                  <CardHeader className="bg-blue-100/50 py-3">
-                    <CardTitle className="text-lg font-bold">MASCULINO - PARTIDOS</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 pb-4">
-                    {renderMatchCards(masculinoMatches, 'Masculino')}
-                  </CardContent>
-                </Card>
-
-                {/* Columna Femenino - Partidos */}
-                <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
-                  <CardHeader className="bg-pink-100/50 py-3">
-                    <CardTitle className="text-lg font-bold">FEMENINO - PARTIDOS</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 pb-4">
-                    {renderMatchCards(femeninoMatches, 'Femenino')}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="masculino">
-            <Card>
-              <CardHeader>
-                <CardTitle>Partidos - Categoría Masculino</CardTitle>
-                <CardDescription>
-                  {masculinoMatches.filter(m => m.status === 'completed').length} completados de {masculinoMatches.length} totales
-                </CardDescription>
+        <div className="space-y-6 max-w-[98vw] mx-auto">
+          {/* Fila de Posiciones */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Columna Masculino - Posiciones */}
+            <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
+              <CardHeader className="bg-blue-100/50 py-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-lg font-bold">MASCULINO - POSICIONES</CardTitle>
+                  <Badge variant="secondary" className="text-xs">
+                    {masculinoMatches.filter(m => m.status === 'completed').length}/{masculinoMatches.length}
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4 pb-4">
+                {renderStandingsTable(masculinoMatches)}
+              </CardContent>
+            </Card>
+
+            {/* Columna Femenino - Posiciones */}
+            <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
+              <CardHeader className="bg-pink-100/50 py-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-lg font-bold">FEMENINO - POSICIONES</CardTitle>
+                  <Badge variant="secondary" className="text-xs">
+                    {femeninoMatches.filter(m => m.status === 'completed').length}/{femeninoMatches.length}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 pb-4">
+                {renderStandingsTable(femeninoMatches)}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fila de Partidos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Columna Masculino - Partidos */}
+            <Card className="border-2 border-blue-400/50 bg-blue-50/30 min-w-0">
+              <CardHeader className="bg-blue-100/50 py-3">
+                <CardTitle className="text-lg font-bold">MASCULINO - PARTIDOS</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 pb-4">
                 {renderMatchCards(masculinoMatches, 'Masculino')}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="femenino">
-            <Card>
-              <CardHeader>
-                <CardTitle>Partidos - Categoría Femenino</CardTitle>
-                <CardDescription>
-                  {femeninoMatches.filter(m => m.status === 'completed').length} completados de {femeninoMatches.length} totales
-                </CardDescription>
+            {/* Columna Femenino - Partidos */}
+            <Card className="border-2 border-pink-400/50 bg-pink-50/30 min-w-0">
+              <CardHeader className="bg-pink-100/50 py-3">
+                <CardTitle className="text-lg font-bold">FEMENINO - PARTIDOS</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4 pb-4">
                 {renderMatchCards(femeninoMatches, 'Femenino')}
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </main>
     </div>
   );
