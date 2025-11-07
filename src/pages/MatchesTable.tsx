@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,9 @@ interface TeamStanding {
 }
 
 const MatchesTable = () => {
+  const location = useLocation();
+  const isPlayersMode = location.pathname.includes('/players');
+
   const [masculinoMatches, setMasculinoMatches] = useState<Match[]>([]);
   const [femeninoMatches, setFemeninoMatches] = useState<Match[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -401,16 +404,26 @@ const MatchesTable = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Volver
-                </Button>
-              </Link>
+              {!isPlayersMode && (
+                <>
+                  <Link to="/">
+                    <Button variant="outline" size="sm">
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Volver
+                    </Button>
+                  </Link>
+                  <div className="h-8 w-px bg-border" />
+                </>
+              )}
               <div>
-                <h1 className="text-2xl font-bold">Tabla de Partidos</h1>
+                <h1 className="text-2xl font-bold">
+                  {isPlayersMode ? "Resultados del Torneo" : "Tabla de Partidos"}
+                </h1>
                 <p className="text-sm text-muted-foreground">
-                  Visualiza todos los partidos programados y sus resultados
+                  {isPlayersMode
+                    ? "Consulta todos los resultados y la tabla de posiciones"
+                    : "Visualiza todos los partidos programados y sus resultados"
+                  }
                 </p>
               </div>
             </div>
