@@ -103,6 +103,25 @@ const Index = () => {
               </Link>
             </CardContent>
           </Card>
+
+          <Card className="shadow-padel hover:shadow-padel-lg transition-all duration-300 border-2 border-yellow-400/50 bg-gradient-to-br from-yellow-50 to-white">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Trophy className="h-5 w-5 text-yellow-600" />
+                Eliminatorias
+              </CardTitle>
+              <CardDescription>
+                Cuartos, semifinales y final del torneo
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link to="/playoffs">
+                <Button className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white" size="lg">
+                  Ver Eliminatorias
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
