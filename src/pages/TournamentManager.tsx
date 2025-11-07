@@ -426,8 +426,8 @@ const TournamentManager = () => {
     setIsMatchDialogOpen(true);
   };
 
-  const handleSaveMatch = () => {
-    if (!editingMatch) return;
+  const handleSaveMatch = async () => {
+    if (!editingMatch || !editingMatch.team1 || !editingMatch.team2) return;
 
     // Auto-calcular ganador antes de guardar
     const team1Sets = [
@@ -468,20 +468,60 @@ const TournamentManager = () => {
       updatedMatch.status = 'pending';
     }
 
-    const updatedMatches = matches.map(m =>
-      m.id === updatedMatch.id ? updatedMatch : m
-    );
+    try {
+      // Guardar en la base de datos inmediatamente
+      if (updatedMatch.id.startsWith('temp-')) {
+        // Es un partido nuevo que aún no está en la DB
+        toast({
+          title: "Error",
+          description: "Este partido aún no está guardado. Usa 'Guardar Todo' primero.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setMatches(updatedMatches);
-    setIsMatchDialogOpen(false);
-    setEditingMatch(null);
+      // Actualizar el partido en la base de datos
+      const { error } = await supabase
+        .from('matches')
+        .update({
+          team1_id: updatedMatch.team1.id,
+          team2_id: updatedMatch.team2.id,
+          team1_set1: updatedMatch.team1_set1,
+          team1_set2: updatedMatch.team1_set2,
+          team1_set3: updatedMatch.team1_set3,
+          team2_set1: updatedMatch.team2_set1,
+          team2_set2: updatedMatch.team2_set2,
+          team2_set3: updatedMatch.team2_set3,
+          winner_id: updatedMatch.winner_id,
+          status: updatedMatch.status
+        })
+        .eq('id', updatedMatch.id);
 
-    toast({
-      title: "Partido actualizado",
-      description: updatedMatch.status === 'completed'
-        ? `Ganador: ${updatedMatch.winner_id === updatedMatch.team1.id ? updatedMatch.team1.name : updatedMatch.team2.name}`
-        : "Resultado guardado. Completa los sets para determinar el ganador."
-    });
+      if (error) throw error;
+
+      // Actualizar el estado local
+      const updatedMatches = matches.map(m =>
+        m.id === updatedMatch.id ? updatedMatch : m
+      );
+
+      setMatches(updatedMatches);
+      setIsMatchDialogOpen(false);
+      setEditingMatch(null);
+
+      toast({
+        title: "Partido guardado",
+        description: updatedMatch.status === 'completed'
+          ? `Ganador: ${updatedMatch.winner_id === updatedMatch.team1.id ? updatedMatch.team1.name : updatedMatch.team2.name}`
+          : "Resultado guardado en la base de datos"
+      });
+    } catch (error) {
+      console.error("Error saving match:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el partido. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Agregar nuevo partido manualmente
@@ -548,48 +588,50 @@ const TournamentManager = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-3 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <Link to="/">
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-1 sm:gap-2 px-2 sm:px-3">
                   <ArrowLeft className="h-4 w-4" />
-                  Volver
+                  <span className="hidden sm:inline">Volver</span>
                 </Button>
               </Link>
-              <div className="h-8 w-px bg-border" />
+              <div className="h-8 w-px bg-border hidden sm:block" />
               <div>
-                <h1 className="text-xl font-bold">Gestor de Torneo</h1>
-                <p className="text-xs text-muted-foreground">Configura grupos y partidos fácilmente</p>
+                <h1 className="text-base sm:text-xl font-bold">Gestor de Torneo</h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">Configura grupos y partidos fácilmente</p>
               </div>
             </div>
-            <img src={tournamentLogo} alt="White Padel" className="h-10 w-auto" />
+            <img src={tournamentLogo} alt="White Padel" className="h-8 sm:h-10 w-auto" />
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8 max-w-7xl">
-        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="space-y-6">
+      <main className="container mx-auto px-3 sm:px-6 py-4 sm:py-8 max-w-7xl">
+        <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-            <TabsTrigger value="Masculino">
-              Masculino ({allTeams?.length || 0} duplas)
+            <TabsTrigger value="Masculino" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Masculino ({allTeams?.length || 0} duplas)</span>
+              <span className="sm:hidden">Masc ({allTeams?.length || 0})</span>
             </TabsTrigger>
-            <TabsTrigger value="Femenino">
-              Femenino
+            <TabsTrigger value="Femenino" className="text-xs sm:text-sm">
+              <span className="hidden sm:inline">Femenino</span>
+              <span className="sm:hidden">Fem</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="Masculino" className="space-y-6">
             {/* Contenido de Masculino */}
             {/* Configuración de grupos */}
-            <Card className="mb-6">
+            <Card className="mb-4 sm:mb-6">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
                   <div>
-                    <CardTitle>2. Configurar Grupos</CardTitle>
-                    <CardDescription>Define los grupos y distribuye las duplas</CardDescription>
+                    <CardTitle className="text-base sm:text-lg">2. Configurar Grupos</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Define los grupos y distribuye las duplas</CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
                       <DialogTrigger asChild>
                         <Button variant="outline" className="gap-2">
@@ -633,21 +675,22 @@ const TournamentManager = () => {
                       </DialogContent>
                     </Dialog>
                     {groups.length > 0 && (
-                      <div className="flex gap-2 items-center">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm whitespace-nowrap">Partidos por dupla:</Label>
+                      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full sm:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <Label className="text-xs sm:text-sm whitespace-nowrap">Partidos por dupla:</Label>
                           <Input
                             type="number"
                             min="1"
                             max="10"
                             value={matchesPerTeam}
                             onChange={(e) => setMatchesPerTeam(Number(e.target.value))}
-                            className="w-20"
+                            className="w-16 sm:w-20"
                           />
                         </div>
-                        <Button onClick={generateMatches} className="gap-2">
+                        <Button onClick={generateMatches} className="gap-2 w-full sm:w-auto">
                           <Play className="h-4 w-4" />
-                          Generar Partidos
+                          <span className="hidden sm:inline">Generar Partidos</span>
+                          <span className="sm:hidden">Generar</span>
                         </Button>
                       </div>
                     )}
@@ -665,7 +708,7 @@ const TournamentManager = () => {
                   </div>
                 ) : (
                   <DragDropContext onDragEnd={onDragEnd}>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {groups.map((group, groupIndex) => (
                         <Card key={group.id}>
                           <CardHeader className="pb-3">
@@ -807,7 +850,7 @@ const TournamentManager = () => {
                     </TabsList>
                     {groups.map(group => (
                       <TabsContent key={group.id} value={group.id}>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {matches
                             .filter(m => m.group_id === group.id)
                             .map((match, index) => (
@@ -815,20 +858,21 @@ const TournamentManager = () => {
                                 key={match.id}
                                 className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                               >
-                                <CardHeader className="pb-3">
+                                <CardHeader className="pb-2 sm:pb-3">
                                   <div className="flex items-center justify-between">
-                                    <Badge variant="outline">Partido #{index + 1}</Badge>
-                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
-                                      {match.status === 'completed' ? 'Completado' : 'Pendiente'}
+                                    <Badge variant="outline" className="text-xs">Partido #{index + 1}</Badge>
+                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                                      <span className="hidden sm:inline">{match.status === 'completed' ? 'Completado' : 'Pendiente'}</span>
+                                      <span className="sm:hidden">{match.status === 'completed' ? '✓' : '○'}</span>
                                     </Badge>
                                   </div>
                                 </CardHeader>
-                                <CardContent className="space-y-3">
+                                <CardContent className="space-y-2 sm:space-y-3">
                                   {/* Equipo 1 */}
                                   {match.team1 && (
-                                    <div className="p-3 rounded-lg bg-muted/50 border">
-                                      <p className="font-semibold text-sm mb-1">{match.team1.name}</p>
-                                      <p className="text-xs text-muted-foreground">
+                                    <div className="p-2 sm:p-3 rounded-lg bg-muted/50 border">
+                                      <p className="font-semibold text-xs sm:text-sm mb-1 truncate">{match.team1.name}</p>
+                                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                                         {match.team1.player1_name} / {match.team1.player2_name}
                                       </p>
                                     </div>
@@ -838,7 +882,7 @@ const TournamentManager = () => {
                                   {match.team2 ? (
                                     <>
                                       {/* VS y Marcador */}
-                                      <div className="flex items-center justify-center gap-2 py-2">
+                                      <div className="flex items-center justify-center gap-1 sm:gap-2 py-1 sm:py-2">
                                         <div className="text-center">
                                           <p className="text-xs text-muted-foreground mb-1">Set 1</p>
                                           <div className="flex gap-1 text-sm font-bold">
@@ -888,9 +932,9 @@ const TournamentManager = () => {
                                       </div>
 
                                       {/* Equipo 2 */}
-                                      <div className="p-3 rounded-lg bg-muted/50 border">
-                                        <p className="font-semibold text-sm mb-1">{match.team2.name}</p>
-                                        <p className="text-xs text-muted-foreground">
+                                      <div className="p-2 sm:p-3 rounded-lg bg-muted/50 border">
+                                        <p className="font-semibold text-xs sm:text-sm mb-1 truncate">{match.team2.name}</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                                           {match.team2.player1_name} / {match.team2.player2_name}
                                         </p>
                                       </div>
@@ -1040,21 +1084,22 @@ const TournamentManager = () => {
                       </DialogContent>
                     </Dialog>
                     {groups.length > 0 && (
-                      <div className="flex gap-2 items-center">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm whitespace-nowrap">Partidos por dupla:</Label>
+                      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full sm:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <Label className="text-xs sm:text-sm whitespace-nowrap">Partidos por dupla:</Label>
                           <Input
                             type="number"
                             min="1"
                             max="10"
                             value={matchesPerTeam}
                             onChange={(e) => setMatchesPerTeam(Number(e.target.value))}
-                            className="w-20"
+                            className="w-16 sm:w-20"
                           />
                         </div>
-                        <Button onClick={generateMatches} className="gap-2">
+                        <Button onClick={generateMatches} className="gap-2 w-full sm:w-auto">
                           <Play className="h-4 w-4" />
-                          Generar Partidos
+                          <span className="hidden sm:inline">Generar Partidos</span>
+                          <span className="sm:hidden">Generar</span>
                         </Button>
                       </div>
                     )}
@@ -1072,7 +1117,7 @@ const TournamentManager = () => {
                   </div>
                 ) : (
                   <DragDropContext onDragEnd={onDragEnd}>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {groups.map((group, groupIndex) => (
                         <Card key={group.id}>
                           <CardHeader className="pb-3">
@@ -1214,7 +1259,7 @@ const TournamentManager = () => {
                     </TabsList>
                     {groups.map(group => (
                       <TabsContent key={group.id} value={group.id}>
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {matches
                             .filter(m => m.group_id === group.id)
                             .map((match, index) => (
@@ -1222,11 +1267,12 @@ const TournamentManager = () => {
                                 key={match.id}
                                 className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                               >
-                                <CardHeader className="pb-3">
+                                <CardHeader className="pb-2 sm:pb-3">
                                   <div className="flex items-center justify-between">
-                                    <Badge variant="outline">Partido #{index + 1}</Badge>
-                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
-                                      {match.status === 'completed' ? 'Completado' : 'Pendiente'}
+                                    <Badge variant="outline" className="text-xs">Partido #{index + 1}</Badge>
+                                    <Badge variant={match.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                                      <span className="hidden sm:inline">{match.status === 'completed' ? 'Completado' : 'Pendiente'}</span>
+                                      <span className="sm:hidden">{match.status === 'completed' ? '✓' : '○'}</span>
                                     </Badge>
                                   </div>
                                 </CardHeader>
@@ -1392,15 +1438,15 @@ const TournamentManager = () => {
 
       {/* Dialog para editar partido */}
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Partido</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Editar Partido</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Modifica los equipos y/o los resultados del partido
             </DialogDescription>
           </DialogHeader>
           {editingMatch && (
-            <div className="space-y-6 py-4">
+            <div className="space-y-4 sm:space-y-6 py-2 sm:py-4">
               {/* Selección de equipos */}
               <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
                 <h4 className="font-semibold text-sm">Equipos</h4>
@@ -1465,7 +1511,7 @@ const TournamentManager = () => {
                 <h4 className="font-semibold text-sm">Resultados</h4>
 
                 {/* Set 1 */}
-                <div className="grid grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end">
                   <div>
                     <Label className="text-xs text-muted-foreground">Set 1 - {editingMatch.team1.name}</Label>
                     <Input
@@ -1496,7 +1542,7 @@ const TournamentManager = () => {
                 </div>
 
                 {/* Set 2 */}
-                <div className="grid grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end">
                   <div>
                     <Label className="text-xs text-muted-foreground">Set 2 - {editingMatch.team1.name} (Opcional)</Label>
                     <Input
@@ -1529,7 +1575,7 @@ const TournamentManager = () => {
                 </div>
 
                 {/* Set 3 */}
-                <div className="grid grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end">
                   <div>
                     <Label className="text-xs text-muted-foreground">Set 3 - {editingMatch.team1.name} (Opcional)</Label>
                     <Input
@@ -1573,11 +1619,11 @@ const TournamentManager = () => {
               </div>
             </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsMatchDialogOpen(false)}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsMatchDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSaveMatch}>
+            <Button onClick={handleSaveMatch} className="w-full sm:w-auto">
               Guardar Partido
             </Button>
           </div>
