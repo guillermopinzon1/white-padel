@@ -191,7 +191,7 @@ const Playoffs = () => {
     setFinal(newFinal);
   };
 
-  const advanceWinnerAndSave = async (match: Match) => {
+  const advanceWinner = (match: Match) => {
     if (!match.winner_id) return;
 
     const winner = match.winner_id === match.team1?.id ? match.team1 : match.team2;
@@ -204,17 +204,10 @@ const Playoffs = () => {
 
       setSemifinals(prev => prev.map(semi => {
         if (semi.position === semiPosition) {
-          const updatedSemi = {
+          return {
             ...semi,
             [semiSlot]: winner
           };
-
-          // Si ambos equipos están asignados, guardar en DB
-          if (updatedSemi.team1 && updatedSemi.team2) {
-            saveMatchToDB(updatedSemi);
-          }
-
-          return updatedSemi;
         }
         return semi;
       }));
@@ -225,17 +218,10 @@ const Playoffs = () => {
 
       setFinal(prev => {
         if (!prev) return prev;
-        const updatedFinal = {
+        return {
           ...prev,
           [finalSlot]: winner
         };
-
-        // Si ambos equipos están asignados, guardar en DB
-        if (updatedFinal.team1 && updatedFinal.team2) {
-          saveMatchToDB(updatedFinal);
-        }
-
-        return updatedFinal;
       });
     }
   };
@@ -268,7 +254,7 @@ const Playoffs = () => {
     }
   };
 
-  const onDragEnd = async (result: DropResult) => {
+  const onDragEnd = (result: DropResult) => {
     const { source, destination } = result;
     if (!destination) return;
 
@@ -282,33 +268,25 @@ const Playoffs = () => {
     const [phase, position, slot] = destId.split('-');
     const pos = parseInt(position);
 
-    let updatedMatch: Match | undefined;
-    let matchArray: Match[] = [];
-
     if (phase === 'quarterfinals') {
-      matchArray = [...quarterfinals];
-      updatedMatch = { ...matchArray[pos] };
+      const matchArray = [...quarterfinals];
+      const updatedMatch = { ...matchArray[pos] };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
       matchArray[pos] = updatedMatch;
       setQuarterfinals(matchArray);
     } else if (phase === 'semifinals') {
-      matchArray = [...semifinals];
-      updatedMatch = { ...matchArray[pos] };
+      const matchArray = [...semifinals];
+      const updatedMatch = { ...matchArray[pos] };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
       matchArray[pos] = updatedMatch;
       setSemifinals(matchArray);
     } else if (phase === 'final' && final) {
-      updatedMatch = { ...final };
+      const updatedMatch = { ...final };
       if (slot === 'team1') updatedMatch.team1 = draggedTeam;
       else updatedMatch.team2 = draggedTeam;
       setFinal(updatedMatch);
-    }
-
-    // Si ambos equipos están asignados, guardar en DB automáticamente
-    if (updatedMatch && updatedMatch.team1 && updatedMatch.team2) {
-      await saveMatchToDB(updatedMatch);
     }
   };
 
@@ -450,9 +428,9 @@ const Playoffs = () => {
         setFinal(updatedMatch);
       }
 
-      // Avanzar ganador a siguiente ronda y guardar
+      // Avanzar ganador a siguiente ronda
       if (updatedMatch.status === 'completed') {
-        await advanceWinnerAndSave(updatedMatch);
+        advanceWinner(updatedMatch);
       }
 
       setIsMatchDialogOpen(false);
@@ -634,9 +612,6 @@ const Playoffs = () => {
                   <SelectItem value="Femenino">Femenino</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                💾 Los cambios se guardan automáticamente
-              </p>
             </div>
           </CardContent>
         </Card>
