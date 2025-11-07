@@ -60,7 +60,7 @@ const CategoryManagement = () => {
           player2_name: partnerName,
         });
         toast({
-          title: "Dupla actualizada",
+          title: "Dupla actualizad",
           description: `${playerName} y ${partnerName} han sido actualizados`,
         });
       } else {
