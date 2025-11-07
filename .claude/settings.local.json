@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nHacer vista /tournament responsive y guardar partidos individualmente\n\n- ✅ Hacer responsive el header, tabs, grids y cards para móviles\n- ✅ Optimizar tamaños de texto y espaciado para pantallas pequeñas\n- ✅ Modificar handleSaveMatch para guardar cada partido individualmente en la DB\n- ✅ Permitir edición simultánea de partidos desde múltiples dispositivos\n- ✅ Añadir validación para partidos temporales que aún no están en la DB\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
