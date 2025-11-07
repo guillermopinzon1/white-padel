@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Save, Edit2, Crown } from "lucide-react";
+import { ArrowLeft, Trophy, Save, Edit2, Crown, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTeams } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
@@ -123,21 +123,22 @@ const Playoffs = () => {
         else if (m.phase === 'final') finalMatch = match;
       });
 
-      setQuarterfinals(quarters);
-      setSemifinals(semis);
-      setFinal(finalMatch);
+      // Si no hay datos, inicializar brackets vacíos
+      if (quarters.length === 0) {
+        initializeEmptyBrackets();
+      } else {
+        setQuarterfinals(quarters);
+        setSemifinals(semis);
+        setFinal(finalMatch);
+      }
     } catch (error) {
       console.error("Error loading playoffs:", error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las eliminatorias",
-        variant: "destructive"
-      });
+      // Si hay error, inicializar brackets vacíos
+      initializeEmptyBrackets();
     }
   };
 
-  const initializePlayoffs = () => {
-    // Crear 4 cuartos de final
+  const initializeEmptyBrackets = () => {
     const newQuarters: Match[] = Array.from({ length: 4 }, (_, i) => ({
       id: `temp-quarter-${i}`,
       phase: 'quarterfinals',
@@ -154,7 +155,6 @@ const Playoffs = () => {
       status: 'pending'
     }));
 
-    // Crear 2 semifinales
     const newSemis: Match[] = Array.from({ length: 2 }, (_, i) => ({
       id: `temp-semi-${i}`,
       phase: 'semifinals',
@@ -171,7 +171,6 @@ const Playoffs = () => {
       status: 'pending'
     }));
 
-    // Crear final
     const newFinal: Match = {
       id: `temp-final-0`,
       phase: 'final',
@@ -191,11 +190,69 @@ const Playoffs = () => {
     setQuarterfinals(newQuarters);
     setSemifinals(newSemis);
     setFinal(newFinal);
+  };
 
-    toast({
-      title: "Eliminatorias inicializadas",
-      description: "Ahora puedes arrastrar equipos a los partidos"
-    });
+  const advanceWinner = (match: Match) => {
+    if (!match.winner_id) return;
+
+    const winner = match.winner_id === match.team1?.id ? match.team1 : match.team2;
+    if (!winner) return;
+
+    // Avanzar de cuartos a semifinales
+    if (match.phase === 'quarterfinals') {
+      const semiPosition = Math.floor(match.position / 2); // 0,1 -> 0 | 2,3 -> 1
+      const semiSlot = match.position % 2 === 0 ? 'team1' : 'team2';
+
+      setSemifinals(prev => prev.map(semi => {
+        if (semi.position === semiPosition) {
+          return {
+            ...semi,
+            [semiSlot]: winner
+          };
+        }
+        return semi;
+      }));
+    }
+    // Avanzar de semifinales a final
+    else if (match.phase === 'semifinals') {
+      const finalSlot = match.position === 0 ? 'team1' : 'team2';
+
+      setFinal(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [finalSlot]: winner
+        };
+      });
+    }
+  };
+
+  const removeTeamFromMatch = (match: Match, slot: 'team1' | 'team2') => {
+    const updateMatch = (m: Match) => {
+      if (m.id === match.id) {
+        return {
+          ...m,
+          [slot]: null,
+          team1_set1: 0,
+          team1_set2: null,
+          team1_set3: null,
+          team2_set1: 0,
+          team2_set2: null,
+          team2_set3: null,
+          winner_id: null,
+          status: 'pending' as const
+        };
+      }
+      return m;
+    };
+
+    if (match.phase === 'quarterfinals') {
+      setQuarterfinals(prev => prev.map(updateMatch));
+    } else if (match.phase === 'semifinals') {
+      setSemifinals(prev => prev.map(updateMatch));
+    } else if (match.phase === 'final' && final) {
+      setFinal(updateMatch(final));
+    }
   };
 
   const onDragEnd = (result: DropResult) => {
@@ -319,13 +376,18 @@ const Playoffs = () => {
         setFinal(updatedMatch);
       }
 
+      // Avanzar ganador a siguiente ronda
+      if (updatedMatch.status === 'completed') {
+        advanceWinner(updatedMatch);
+      }
+
       setIsMatchDialogOpen(false);
       setEditingMatch(null);
 
       toast({
         title: "Partido guardado",
         description: updatedMatch.status === 'completed'
-          ? `Ganador: ${updatedMatch.winner_id === updatedMatch.team1.id ? updatedMatch.team1.name : updatedMatch.team2.name}`
+          ? `¡${updatedMatch.winner_id === updatedMatch.team1.id ? updatedMatch.team1.name : updatedMatch.team2.name} avanza a la siguiente ronda!`
           : "Resultado guardado"
       });
     } catch (error) {
@@ -465,7 +527,15 @@ const Playoffs = () => {
               } ${match.team1 ? 'bg-white' : 'bg-gray-50'}`}
             >
               {match.team1 ? (
-                <div className={`${match.winner_id === match.team1.id ? 'ring-2 ring-yellow-400' : ''} rounded p-1`}>
+                <div className={`${match.winner_id === match.team1.id ? 'ring-2 ring-yellow-400' : ''} rounded p-1 relative group`}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full"
+                    onClick={() => removeTeamFromMatch(match, 'team1')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                   <p className="font-semibold text-xs sm:text-sm truncate">{match.team1.name}</p>
                   <p className="text-[10px] text-muted-foreground truncate">
                     {match.team1.player1_name} / {match.team1.player2_name}
@@ -505,7 +575,15 @@ const Playoffs = () => {
               } ${match.team2 ? 'bg-white' : 'bg-gray-50'}`}
             >
               {match.team2 ? (
-                <div className={`${match.winner_id === match.team2.id ? 'ring-2 ring-yellow-400' : ''} rounded p-1`}>
+                <div className={`${match.winner_id === match.team2.id ? 'ring-2 ring-yellow-400' : ''} rounded p-1 relative group`}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full"
+                    onClick={() => removeTeamFromMatch(match, 'team2')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                   <p className="font-semibold text-xs sm:text-sm truncate">{match.team2.name}</p>
                   <p className="text-[10px] text-muted-foreground truncate">
                     {match.team2.player1_name} / {match.team2.player2_name}
@@ -574,22 +652,14 @@ const Playoffs = () => {
                 </SelectContent>
               </Select>
 
-              {quarterfinals.length === 0 && (
-                <Button onClick={initializePlayoffs} className="w-full sm:w-auto">
-                  Crear Brackets
-                </Button>
-              )}
-
-              {quarterfinals.length > 0 && (
-                <Button
-                  onClick={handleSaveAll}
-                  disabled={isSaving}
-                  className="w-full sm:w-auto gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? "Guardando..." : "Guardar Todo"}
-                </Button>
-              )}
+              <Button
+                onClick={handleSaveAll}
+                disabled={isSaving}
+                className="w-full sm:w-auto gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? "Guardando..." : "Guardar Todo"}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -643,8 +713,7 @@ const Playoffs = () => {
             </Card>
           )}
 
-          {quarterfinals.length > 0 && (
-            <div className="space-y-6">
+          <div className="space-y-6">
               {/* Cuartos de Final */}
               {quarterfinals.length > 0 && (
                 <div>
@@ -692,8 +761,7 @@ const Playoffs = () => {
                   </div>
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </DragDropContext>
       </main>
 
